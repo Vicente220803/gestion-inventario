@@ -1,18 +1,20 @@
-// CÓDIGO DEFINITIVO para: src/composables/useInventory.js
+// Ruta: src/composables/useInventory.js
 
 import { ref, readonly } from 'vue';
+import { useToasts } from './useToasts';
 
-// Estado global reactivo (privado dentro de este módulo)
+// El estado global no cambia
 const _productsWithSku = ref({});
 const _materialStock = ref({});
 const _movements = ref([]);
 
-// Función principal del composable
 export function useInventory() {
+  const { showSuccess, showError } = useToasts();
 
   // --- Carga y Guardado (Persistencia) ---
   const loadFromLocalStorage = () => {
     const storedProducts = localStorage.getItem('productsWithSku');
+    // AQUÍ ESTÁ TU LISTA COMPLETA DE MATERIALES
     _productsWithSku.value = storedProducts ? JSON.parse(storedProducts) : {
       "PALE 1200X800 C.81 LOGIFRUIT": { sku: "LOGIFRUIT81" },
       "CAJA PLAST IFCO 400X300 A-162 RF.BLL4314": { sku: "BLACK4314" },
@@ -32,6 +34,7 @@ export function useInventory() {
     };
 
     const storedStock = localStorage.getItem('materialStock');
+    // AQUÍ ESTÁ TU STOCK INICIAL COMPLETO
     _materialStock.value = storedStock ? JSON.parse(storedStock) : {
       "LOGIFRUIT81": 120, "BLACK4314": 80, "LOGIFRUIT316": 150, "BLACK4310": 110, "154CAJAVERDE": 95, "PURAPIÑA": 200, "ALDI1": 150, "DELMONTE": 180, "HACENDADO1": 75, "TAPAPIÑA": 250, "TARRINA97,5": 300, "MONTADA A-125": 50, "TARRINA119": 170, "TARRINA ZANAHORIA": 220, "TARRINA 1AF": 90
     };
@@ -47,31 +50,6 @@ export function useInventory() {
   };
 
   // --- ACCIONES para modificar el estado ---
-// Anula un movimiento: revierte su efecto en el stock y lo elimina del historial.
-const deleteMovement = (movementToDelete) => {
-  // 1. Revertir el efecto en el stock
-  if (movementToDelete.tipo === 'Salida') {
-    // Si fue una salida, VOLVEMOS A SUMAR los artículos al stock
-    movementToDelete.items.forEach(item => {
-      _materialStock.value[item.sku] = (_materialStock.value[item.sku] || 0) + Number(item.cantidad);
-    });
-  } else { // Si fue una Entrada
-    // RESTAMOS los artículos del stock
-    movementToDelete.items.forEach(item => {
-      _materialStock.value[item.sku] = (_materialStock.value[item.sku] || 0) - Number(item.cantidad);
-    });
-  }
-
-  // 2. Eliminar el movimiento del historial
-  // Buscamos el índice del movimiento a borrar para eliminarlo del array
-  const index = _movements.value.findIndex(m => m === movementToDelete);
-  if (index > -1) {
-    _movements.value.splice(index, 1);
-  }
-  
-  // 3. Guardar todos los cambios
-  saveToLocalStorage();
-};
 
   const addMovement = (movementData) => {
     _movements.value.push(movementData);
@@ -85,17 +63,37 @@ const deleteMovement = (movementToDelete) => {
   
   const addProduct = (productInfo) => {
     if (_productsWithSku.value[productInfo.desc] || Object.values(_productsWithSku.value).some(p => p.sku === productInfo.sku)) {
-      alert('Error: La descripción o el SKU de este producto ya existen.'); return;
+      showError('Error: La descripción o el SKU de este producto ya existen.');
+      return;
     }
     _productsWithSku.value[productInfo.desc] = { sku: productInfo.sku };
     _materialStock.value[productInfo.sku] = Number(productInfo.initialStock) || 0;
     saveToLocalStorage();
-    alert('¡Producto añadido con éxito!');
+    showSuccess('¡Producto añadido con éxito!');
   };
   
   const updateFullStock = (newStock) => {
     _materialStock.value = newStock;
     saveToLocalStorage();
+  };
+
+  const deleteProduct = (productDesc) => {
+    const isProductInUse = _movements.value.some(movement => 
+      movement.items.some(item => item.desc === productDesc)
+    );
+    if (isProductInUse) {
+      showError('Error: No se puede borrar un material con movimientos en el historial.');
+      return;
+    }
+    const skuToDelete = _productsWithSku.value[productDesc]?.sku;
+    if (_productsWithSku.value[productDesc]) {
+      delete _productsWithSku.value[productDesc];
+    }
+    if (skuToDelete && _materialStock.value[skuToDelete]) {
+      delete _materialStock.value[skuToDelete];
+    }
+    saveToLocalStorage();
+    showSuccess('Material borrado con éxito.');
   };
 
   const clearAllData = () => {
@@ -108,7 +106,6 @@ const deleteMovement = (movementToDelete) => {
   };
 
   // --- VALORES EXPUESTOS ---
-  // La función de cálculo ya no vive aquí.
   return {
     productsWithSku: readonly(_productsWithSku),
     materialStock: readonly(_materialStock),
@@ -117,7 +114,7 @@ const deleteMovement = (movementToDelete) => {
     addMovement,
     addProduct,
     updateFullStock,
-    deleteMovement,
+    deleteProduct,
     clearAllData,
   };
 }

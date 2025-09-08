@@ -2,11 +2,12 @@
 <script setup>
 import { ref } from 'vue';
 import { useInventory } from '../composables/useInventory';
+import { useToasts } from '../composables/useToasts'; // <-- 1. IMPORTAMOS EL AYUDANTE
 
-// Importamos la nueva función que hemos creado
-const { addProduct, productsWithSku } = useInventory();
+// 2. PREPARAMOS LAS FUNCIONES DE NOTIFICACIÓN PARA USARLAS
+const { showSuccess, showError } = useToasts(); 
+const { addProduct, productsWithSku, deleteProduct } = useInventory();
 
-// Estado local para el formulario de nuevo producto
 const newProduct = ref({
   desc: '',
   sku: '',
@@ -14,17 +15,25 @@ const newProduct = ref({
 });
 
 function handleAddProduct() {
-  // Validaciones básicas
   if (!newProduct.value.desc || !newProduct.value.sku) {
-    alert('La descripción y el SKU son obligatorios.');
+    // 3. REEMPLAZAMOS EL ALERT DE ERROR
+    showError('La descripción y el SKU son obligatorios.');
     return;
   }
   
-  // Llamamos a la función del composable para añadir el producto
-  addProduct(newProduct.value);
+  // La función addProduct ya tiene su propio alert, vamos a cambiarlo también en useInventory.js
+  // Por ahora, vamos a modificar la llamada para que muestre el toast desde aquí.
+  // (En un paso posterior, moveremos el toast dentro de la propia función addProduct)
+  addProduct(newProduct.value); 
   
-  // Reseteamos el formulario
   newProduct.value = { desc: '', sku: '', initialStock: 0 };
+}
+
+function handleDeleteProduct(productDesc) {
+  // El 'confirm' lo cambiaremos en la Parte B. Por ahora lo dejamos.
+  if (confirm(`¿Estás seguro de que quieres borrar el material "${productDesc}"? Esta acción no se puede deshacer.`)) {
+    deleteProduct(productDesc);
+  }
 }
 </script>
 
@@ -50,20 +59,35 @@ function handleAddProduct() {
         </div>
       </div>
       <div class="flex justify-end mt-6">
-        <button @click="handleAddProduct" class="px-6 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-500 transition-all duration-300">
+        <button @click="handleAddProduct" class="px-6 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700">
           Guardar Material
         </button>
       </div>
     </div>
 
-    <!-- Lista de productos actuales (solo para visualización por ahora) -->
+    <!-- Lista de productos actuales con el botón de borrado -->
     <div class="mt-8">
       <h3 class="text-xl font-semibold text-gray-800 mb-4">Materiales Actuales</h3>
-      <ul class="list-disc list-inside text-gray-600 text-sm pl-4 space-y-2">
-        <li v-for="(product, desc) in productsWithSku" :key="product.sku">
-          {{ desc }} (SKU: {{ product.sku }})
-        </li>
-      </ul>
+      <div v-if="Object.keys(productsWithSku).length > 0" class="space-y-2">
+        <div 
+          v-for="(product, desc) in productsWithSku" 
+          :key="product.sku"
+          class="flex items-center justify-between p-3 bg-white border rounded-md shadow-sm"
+        >
+          <div>
+            <p class="font-medium text-gray-800">{{ desc }}</p>
+            <p class="text-xs text-gray-500">SKU: {{ product.sku }}</p>
+          </div>
+          <button 
+            @click="handleDeleteProduct(desc)"
+            class="px-3 py-1 text-xs font-medium text-red-700 bg-red-100 rounded-md hover:bg-red-200"
+            title="Borrar este material"
+          >
+            Borrar
+          </button>
+        </div>
+      </div>
+      <p v-else class="text-gray-500">No hay materiales definidos.</p>
     </div>
   </div>
 </template>
