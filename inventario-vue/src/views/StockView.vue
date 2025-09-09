@@ -1,37 +1,35 @@
-<!-- Ruta: src/views/StockView.vue (VERSIÓN ACTUALIZADA) -->
+<!-- Ruta: src/views/StockView.vue (VERSIÓN CORREGIDA) -->
 <script setup>
 import { ref, computed } from 'vue';
 import { useInventory } from '../composables/useInventory';
-import AppModal from '../components/AppModal.vue'; // <-- Importamos nuestro nuevo modal
+import { useToasts } from '../composables/useToasts'; // Importamos notificaciones
+import AppModal from '../components/AppModal.vue';
 
-// --- LÓGICA ---
-// Importamos las funciones y datos que necesitamos del "cerebro"
-const { productsWithSku, materialStock, updateFullStock } = useInventory();
+// Importamos TODAS las funciones que necesitamos
+const { productsWithSku, materialStock, updateFullStock, loadFromLocalStorage } = useInventory();
+const { showSuccess } = useToasts();
 
-// Variable para controlar si el modal se muestra o no
 const isEditModalVisible = ref(false);
-
-// Creamos una COPIA del stock para editarla en el formulario.
-// Así, no modificamos el stock real hasta que le damos a "Guardar".
 const editableStock = ref({});
 
 const productNames = computed(() => Object.keys(productsWithSku.value));
 
-// --- FUNCIONES ---
 function openEditModal() {
-  // Antes de abrir el modal, rellenamos nuestra copia 'editableStock'
-  // con los valores actuales del stock real.
   editableStock.value = JSON.parse(JSON.stringify(materialStock.value));
   isEditModalVisible.value = true;
 }
 
 function saveStockChanges() {
-  // Esta es la advertencia que pediste
-  if (confirm('¿Estás seguro? Vas a sobrescribir el stock actual. Esta acción no se puede deshacer.')) {
-    // Si el usuario acepta, llamamos a la función del "cerebro" para guardar los cambios
+  if (confirm('¿Estás seguro? Esta acción modificará permanentemente el stock actual y no se puede deshacer.')) {
+    // 1. Guardamos el nuevo stock
     updateFullStock(editableStock.value);
-    isEditModalVisible.value = false; // Cerramos el modal
-    alert('¡Stock actualizado con éxito!');
+    
+    // 2. Forzamos la recarga de datos para asegurar la reactividad
+    loadFromLocalStorage(); 
+    
+    // 3. Cerramos el modal y notificamos
+    isEditModalVisible.value = false;
+    showSuccess('¡Stock actualizado con éxito!');
   }
 }
 </script>
@@ -40,14 +38,12 @@ function saveStockChanges() {
   <div class="text-center">
     <h2 class="text-2xl font-bold text-gray-800 mb-4">Stock Actual por Material</h2>
 
-    <!-- ESTE ES EL NUEVO BOTÓN PARA EDITAR -->
     <div class="mb-4">
       <button @click="openEditModal" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
         Editar Stock Manualmente
       </button>
     </div>
 
-    <!-- La tabla de stock no cambia -->
     <div class="bg-indigo-100 rounded-xl shadow-inner p-4">
       <table v-if="productNames.length > 0" class="w-full text-left border-collapse table-auto">
         <thead>
@@ -69,20 +65,16 @@ function saveStockChanges() {
     </div>
   </div>
 
-  <!-- AQUÍ USAMOS NUESTRO NUEVO MODAL -->
-  <!-- Solo se mostrará si isEditModalVisible es true -->
   <AppModal 
     v-if="isEditModalVisible" 
     title="Editar Stock Manualmente"
     @close="isEditModalVisible = false"
     @confirm="saveStockChanges"
   >
-    <!-- Este es el contenido que se inyecta en el <slot> del modal -->
     <p class="text-sm text-red-600 bg-red-100 p-3 rounded-md mb-4">
-      <strong>¡Ten cuidado!</strong> Estás a punto de sobrescribir el stock actual. Esta acción es irreversible.
+      <strong>Atención:</strong> Estás a punto de sobrescribir el stock actual. Esta acción es irreversible.
     </p>
 
-    <!-- Formulario dinámico dentro del modal -->
     <div class="space-y-4 max-h-96 overflow-y-auto">
       <div v-for="(product, desc) in productsWithSku" :key="product.sku">
         <label :for="product.sku" class="block text-sm font-medium text-gray-700">{{ desc }}</label>

@@ -1,14 +1,10 @@
-// Ruta: src/main.js
-
 import { createApp } from 'vue'
 import Toast from 'vue-toastification'
 import 'vue-toastification/dist/index.css'
-
 import App from './App.vue'
-import '@/assets/index.css' // <-- Usando el alias '@'
+import './assets/index.css'
 
 const app = createApp(App)
-
 app.use(Toast, {
   position: "top-right",
   timeout: 4000,
@@ -17,5 +13,4 @@ app.use(Toast, {
   pauseOnHover: true,
   draggable: true,
 })
-
 app.mount('#app')
