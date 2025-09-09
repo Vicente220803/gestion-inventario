@@ -5,7 +5,7 @@ import Toast from 'vue-toastification'
 import 'vue-toastification/dist/index.css' // Importa los estilos CSS
 
 import App from './App.vue'
-import './assets/index.css'
+import '@/assets/index.css'
 
 const app = createApp(App)
 
