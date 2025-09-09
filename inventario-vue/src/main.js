@@ -2,14 +2,13 @@
 
 import { createApp } from 'vue'
 import Toast from 'vue-toastification'
-import 'vue-toastification/dist/index.css' // Importa los estilos CSS
+import 'vue-toastification/dist/index.css'
 
 import App from './App.vue'
-import '@/assets/index.css'
+import '@/assets/index.css' // <-- Usando el alias '@'
 
 const app = createApp(App)
 
-// Configura el plugin de notificaciones
 app.use(Toast, {
   position: "top-right",
   timeout: 4000,

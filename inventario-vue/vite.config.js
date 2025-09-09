@@ -1,4 +1,4 @@
-// Ruta: vite.config.js
+// Ruta: vite.config.js (VERSIÓN CORREGIDA CON ALIAS)
 
 import { fileURLToPath, URL } from 'node:url'
 
@@ -12,6 +12,7 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
+      // AQUÍ ESTÁ LA MAGIA: Le decimos que '@' es un atajo para la carpeta './src'
       '@': fileURLToPath(new URL('./src', import.meta.url))
     }
   }

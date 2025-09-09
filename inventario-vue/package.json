@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
-    "vue": "^3.5.18"
+    "vue": "^3.5.18",
+    "vue-toastification": "^2.0.0-rc.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.31.0",
