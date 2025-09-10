@@ -1,4 +1,4 @@
-<!-- RUTA: src/views/HistoryView.vue (VERSIÓN FINAL CON INFORME WORD) -->
+<!-- RUTA: src/views/HistoryView.vue (VERSIÓN FINAL COMPLETA) -->
 <script setup>
 import { ref, computed } from 'vue';
 import { useInventory } from '../composables/useInventory';
@@ -6,7 +6,8 @@ import AppModal from '../components/AppModal.vue';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import { saveAs } from 'file-saver';
 
-const { movements, deleteMovement, materialStock } = useInventory(); // Importamos materialStock
+// Importamos la firma correcta de 'deleteMovement'
+const { movements, deleteMovement, materialStock } = useInventory();
 
 const startDate = ref('');
 const endDate = ref('');
@@ -34,12 +35,11 @@ function performCalculation() {
     const start = new Date(startDate.value + 'T00:00:00');
     const end = new Date(endDate.value + 'T00:00:00');
     
-    // Usamos el stock real guardado como punto de partida
     let stockTemporal = JSON.parse(JSON.stringify(materialStock.value));
 
-    // Para calcular el stock al inicio del periodo, revertimos los movimientos futuros
     const futureMovements = movements.value.filter(m => {
         const dateStr = m.tipo === 'Salida' ? m.fechaEntrega : m.fechaPedido;
+        if (!dateStr) return false;
         return new Date(dateStr + 'T00:00:00') >= start;
     });
 
@@ -72,7 +72,6 @@ function generateAndDownloadWord(data) {
     const totalIncomings = data.reduce((sum, day) => sum + day.incomings, 0);
     const totalOutgoings = data.reduce((sum, day) => sum + day.outgoings, 0);
     const totalStoragePallets = data.reduce((sum, day) => sum + day.finalStock, 0);
-
     const costIncomings = totalIncomings * 1.75;
     const costOutgoings = totalOutgoings * 1.75;
     const costStorage = totalStoragePallets * 0.20;
@@ -115,10 +114,12 @@ function handleCalculateSummary() {
     isSummaryModalVisible.value = true;
 }
 
+// FUNCIÓN DE ANULACIÓN CORREGIDA
 function handleDeleteMovement(movement) {
-    if (confirm('¿Estás seguro de que quieres anular este movimiento?')) {
-        deleteMovement(movement);
-    }
+  if (confirm('¿Estás seguro de que quieres anular este movimiento? El stock se actualizará y el movimiento se borrará del historial.')) {
+    // Pasamos los datos que la nueva función necesita: el ID, el tipo y los items.
+    deleteMovement(movement.id, movement.tipo, movement.items);
+  }
 }
 </script>
 
@@ -140,7 +141,7 @@ function handleDeleteMovement(movement) {
                 <p>Total de Pallets: {{ movement.pallets }}</p>
                 <div v-if="movement.items.length > 0">
                     <p><strong>Artículos:</strong></p>
-                    <ul><li v-for="item in movement.items" :key="item.sku">{{ item.cantidad }} x {{ item.desc }} (SKU: {{ item.sku }})</li></ul>
+                    <ul class="list-disc list-inside ml-4"><li v-for="item in movement.items" :key="item.sku">{{ item.cantidad }} x {{ item.desc }} (SKU: {{ item.sku }})</li></ul>
                 </div>
                 <p v-if="movement.comentarios"><strong>Comentarios:</strong> {{ movement.comentarios }}</p>
             </div>
@@ -148,9 +149,15 @@ function handleDeleteMovement(movement) {
         <p v-else class="text-center text-gray-500">No hay movimientos.</p>
         <AppModal v-if="isSummaryModalVisible" title="Resumen Diario de Stock" @close="isSummaryModalVisible = false" @confirm="isSummaryModalVisible = false">
             <div v-if="summaryData && summaryData.length > 0" class="overflow-x-auto">
-                <table class="w-full text-sm">
-                    <thead><tr><th>Fecha</th><th>Inicial</th><th>Entradas</th><th>Salidas</th><th>Final</th></tr></thead>
-                    <tbody><tr v-for="day in summaryData" :key="day.date"><td>{{ day.date }}</td><td>{{ day.initialStock }}</td><td>+{{ day.incomings }}</td><td>-{{ day.outgoings }}</td><td>{{ day.finalStock }}</td></tr></tbody>
+                <table class="w-full text-sm text-center">
+                    <thead class="bg-gray-50 font-medium"><tr><th class="p-2">Fecha</th><th class="p-2">Inicial</th><th class="p-2 text-green-600">Entradas</th><th class="p-2 text-red-600">Salidas</th><th class="p-2">Final</th></tr></thead>
+                    <tbody><tr v-for="day in summaryData" :key="day.date" class="border-t">
+                        <td class="p-2">{{ day.date }}</td>
+                        <td class="p-2">{{ day.initialStock }}</td>
+                        <td class="p-2 text-green-600">+{{ day.incomings }}</td>
+                        <td class="p-2 text-red-600">-{{ day.outgoings }}</td>
+                        <td class="p-2 font-bold">{{ day.finalStock }}</td>
+                    </tr></tbody>
                 </table>
             </div>
             <p v-else>No se encontraron datos.</p>

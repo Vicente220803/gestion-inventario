@@ -1,9 +1,8 @@
-// RUTA: src/composables/useInventory.js (VERSIÓN FINAL COMPLETA CON SUPABASE)
+// RUTA: src/composables/useInventory.js (VERSIÓN FINAL PARA UNA SOLA TABLA)
 import { ref, readonly } from 'vue';
 import { useToasts } from './useToasts';
-import { supabase } from '../supabase'; // IMPORTAMOS NUESTRO CLIENTE DE SUPABASE
+import { supabase } from '../supabase';
 
-// El estado sigue siendo el mismo: guardaremos los datos de la BD aquí
 const _productsWithSku = ref({});
 const _materialStock = ref({});
 const _movements = ref([]);
@@ -12,173 +11,132 @@ const hasLoaded = ref(false);
 export function useInventory() {
   const { showSuccess, showError } = useToasts();
 
-  // --- NUEVA LÓGICA DE CARGA DESDE EL SERVIDOR ---
   async function loadFromServer() {
-    // Para evitar recargas innecesarias, pero permitiendo refrescar
-    // if (hasLoaded.value) return; 
+    if (hasLoaded.value) return;
 
     try {
-      // Usamos Promise.all para cargar todo en paralelo, es más rápido
-      const [productsRes, stockRes, movementsRes] = await Promise.all([
-        supabase.from('productos').select('*'),
-        supabase.from('stock').select('*'),
-        supabase.from('MOVIMIENTOS').select('*')
-      ]);
+      // 1. CARGAMOS LA LISTA DE PRODUCTOS DESDE EL CÓDIGO (COMO ANTES)
+      _productsWithSku.value = {
+        "PALE 1200X800 C.81 LOGIFRUIT": { sku: "LOGIFRUIT81" },
+        "CAJA PLAST IFCO 400X300 A-162 RF.BLL4314": { sku: "BLACK4314" },
+        "CAJA PLST LOGIFRUIT 400X300 A-160 RF.316": { sku: "LOGIFRUIT316" },
+        "CAJA PLAST IFCO 400X300 A-119 RF.BLL4310": { sku: "BLACK4310" },
+        "CAJA PLAST EUROPOOL 400X300 A150 RF.154": { sku: "154CAJAVERDE" },
+        "TARR. CILIN. PIÑA - PURA PIÑA - T1296": { sku: "PURAPIÑA" },
+        "TARR. CILIN. PIÑA - ALDI - T1296": { sku: "ALDI1" },
+        "TARR. CILIN. PIÑA - DEL MONTE - T1296": { sku: "DELMONTE" },
+        "TARR. CILIN. PIÑA - MERCADONA - T1296": { sku: "HACENDADO1" },
+        "TAPA TARRINA CILINDRO PINA": { sku: "TAPAPIÑA" },
+        "TARRINA REDONDA D97,5 - H75 - T1398": { sku: "TARRINA97,5" },
+        "CAJA CARTON 320X230 A-125 VERDE LIDL": { sku: "MONTADA A-125" },
+        "TARRINA REDONDA D119 - H73,5 - T1835": { sku: "TARRINA119" },
+        "TARR. RED. D97,5-H100-T1398 ZANAH.PALITO": { sku: "TARRINA ZANAHORIA" },
+        "TARRINA K 2187-1AF": { sku: "TARRINA 1AF" },
+      };
 
-      if (productsRes.error) throw productsRes.error;
-      _productsWithSku.value = Object.fromEntries(productsRes.data.map(p => [p.descripcion, { sku: p.sku }]));
-
-      if (stockRes.error) throw stockRes.error;
-      _materialStock.value = Object.fromEntries(stockRes.data.map(s => [s.producto_sku, s.cantidad]));
-
-      if (movementsRes.error) throw movementsRes.error;
-      _movements.value = movementsRes.data.map(m => ({
-        id: m.id,
-        fechaPedido: m.fecha_pedido,
-        fechaEntrega: m.fecha_entrega,
-        pallets: m.pallets,
-        comentarios: m.comentarios,
-        items: m.elementos,
+      // 2. LEEMOS TODOS LOS MOVIMIENTOS DE TU TABLA
+      const { data: movementsData, error: movementsError } = await supabase.from('MOVIMIENTOS').select('*');
+      if (movementsError) throw movementsError;
+      
+      _movements.value = movementsData.map(m => ({
+        id: m.id, 
+        fechaPedido: m.fecha_pedido, 
+        fechaEntrega: m.fecha_entrega, 
+        pallets: m.pallets, 
+        comentarios: m.comentarios, 
+        items: m.elementos, 
         tipo: m.tipo
       }));
-      
-      if (!hasLoaded.value) {
-          showSuccess('Datos cargados desde la nube.');
+
+      // 3. CALCULAMOS EL STOCK ACTUAL BASADO EN LOS MOVIMIENTOS
+      const calculatedStock = {};
+      // Inicializamos el stock para todos los productos conocidos a 0
+      Object.values(_productsWithSku.value).forEach(p => {
+        calculatedStock[p.sku] = 0;
+      });
+
+      // Recorremos los movimientos para sumar y restar
+      for (const movement of _movements.value) {
+          for (const item of movement.items) {
+              if (movement.tipo === 'Entrada') {
+                  calculatedStock[item.sku] = (calculatedStock[item.sku] || 0) + item.cantidad;
+              } else { // Salida
+                  calculatedStock[item.sku] = (calculatedStock[item.sku] || 0) - item.cantidad;
+              }
+          }
       }
+      _materialStock.value = calculatedStock;
+      
+      showSuccess('Datos cargados desde la nube.');
     } catch (error) {
-      showError('No se pudo cargar el inventario desde la base de datos.');
+      showError('No se pudo cargar el inventario.');
       console.error('Error Supabase:', error);
     } finally {
       hasLoaded.value = true;
     }
   }
   
-  // --- ACCIONES ADAPTADAS A SUPABASE ---
-  
   async function addMovement(movementData) {
-    // 1. Insertar el nuevo movimiento
-    const { error: insertError } = await supabase.from('MOVIMIENTOS').insert([{
-        fecha_pedido: movementData.fechaPedido,
-        fecha_entrega: movementData.fechaEntrega,
-        comentarios: movementData.comentarios,
-        tipo: movementData.tipo,
-        elementos: movementData.items,
+    // Esta función ahora solo inserta en la tabla MOVIMIENTOS
+    const { error } = await supabase.from('MOVIMIENTOS').insert([{
+        fecha_pedido: movementData.fechaPedido, 
+        fecha_entrega: movementData.fechaEntrega, 
+        comentarios: movementData.comentarios, 
+        tipo: movementData.tipo, 
+        elementos: movementData.items, 
         pallets: movementData.pallets
     }]);
 
-    if (insertError) {
-      showError('Error al guardar el movimiento.');
-      console.error('Error Supabase:', insertError);
+    if (error) {
+      showError('Error al guardar el movimiento.'); 
+      console.error('Error Supabase al insertar:', error); 
       return;
     }
-
-    // 2. Actualizar el stock
-    for (const item of movementData.items) {
-      const { error: stockError } = await supabase.rpc('actualizar_stock', {
-          sku_producto: item.sku,
-          cantidad_cambio: movementData.tipo === 'Salida' ? -item.cantidad : item.cantidad
-      });
-       if (stockError) {
-        showError(`Error al actualizar el stock para ${item.sku}.`);
-        console.error('Error Supabase:', stockError);
-      }
-    }
     
-    // 3. Volver a cargar los datos para refrescar la interfaz
+    // Forzamos una recarga completa para que el stock se recalcule
+    hasLoaded.value = false;
     await loadFromServer();
   }
   
-  async function addProduct(productInfo) {
-    // 1. Insertar en la tabla de productos
-    const { error: productError } = await supabase.from('productos').insert({
-      sku: productInfo.sku,
-      descripcion: productInfo.desc
-    });
-    if (productError) {
-        showError('Error al crear el producto. ¿Quizás el SKU ya existe?');
-        console.error(productError);
-        return;
-    }
+  async function deleteMovement(movementId) {
+    const { error } = await supabase
+      .from('MOVIMIENTOS')
+      .delete()
+      .eq('id', movementId)
 
-    // 2. Insertar en la tabla de stock
-    const { error: stockError } = await supabase.from('stock').insert({
-        producto_sku: productInfo.sku,
-        cantidad: productInfo.initialStock || 0
-    });
-    if (stockError) {
-        showError('Error al establecer el stock inicial.');
-        console.error(stockError);
-        return;
+    if (error) {
+      showError('Error al anular el movimiento.');
+      console.error('Error Supabase al borrar:', error);
+      return;
     }
-
-    showSuccess('¡Producto añadido con éxito!');
-    await loadFromServer();
-  }
-  
-  async function updateFullStock(newStock) {
-    // Esta función es más compleja con la nueva estructura, requiere un bucle de updates.
-    // Por ahora, la dejamos funcional pero menos optimizada.
-    const updates = Object.entries(newStock).map(([sku, cantidad]) => 
-      supabase.from('stock').update({ cantidad }).eq('producto_sku', sku)
-    );
     
-    const results = await Promise.all(updates);
-    const someError = results.some(res => res.error);
-
-    if (someError) {
-        showError('Hubo un error al actualizar algunas entradas de stock.');
-        console.error(results.map(r => r.error).filter(Boolean));
-    } else {
-        showSuccess('Stock actualizado con éxito.');
-    }
-    await loadFromServer();
-  }
-
-  async function deleteProduct(productDesc) {
-    // ... (La lógica de comprobación de si está en uso sigue siendo válida)
-    const isProductInUse = _movements.value.some(m => m.items.some(i => i.desc === productDesc));
-    if (isProductInUse) {
-      showError('No se puede borrar un material con movimientos en el historial.'); return;
-    }
-
-    const skuToDelete = _productsWithSku.value[productDesc]?.sku;
-    if (!skuToDelete) return;
-
-    // Borramos de la tabla de stock y de productos
-    await supabase.from('stock').delete().eq('producto_sku', skuToDelete);
-    await supabase.from('productos').delete().eq('sku', skuToDelete);
-    
-    showSuccess('Material borrado con éxito.');
-    await loadFromServer();
-  }
-
-  async function deleteMovement(movementToDelete) {
-    // 1. Revertir el stock
-    for (const item of movementToDelete.items) {
-      await supabase.rpc('actualizar_stock', {
-        sku_producto: item.sku,
-        // Invertimos la cantidad: si era salida (-), la anulación es (+).
-        cantidad_cambio: movementToDelete.tipo === 'Salida' ? item.cantidad : -item.cantidad
-      });
-    }
-
-    // 2. Borrar el movimiento
-    await supabase.from('MOVIMIENTOS').delete().eq('id', movementToDelete.id);
-
     showSuccess('Movimiento anulado con éxito.');
+    hasLoaded.value = false;
     await loadFromServer();
   }
 
-  // --- VALORES EXPUESTOS ---
+  // Las funciones de productos y stock ahora mismo no interactúan con la BD.
+  // Se podrían adaptar en el futuro para usar una tabla 'productos'.
+  async function addProduct(productInfo) {
+    showError('La gestión de productos en la base de datos no está implementada.');
+  }
+  async function deleteProduct(productDesc) {
+    showError('La gestión de productos en la base de datos no está implementada.');
+  }
+  async function updateFullStock(newStock) {
+    showError('La edición manual de stock no está implementada con esta estructura de BD.');
+  }
+
+
   return {
     productsWithSku: readonly(_productsWithSku),
     materialStock: readonly(_materialStock),
     movements: readonly(_movements),
     loadFromServer,
     addMovement,
-    addProduct,
-    updateFullStock,
-    deleteProduct,
     deleteMovement,
+    addProduct,
+    deleteProduct,
+    updateFullStock
   };
 }
