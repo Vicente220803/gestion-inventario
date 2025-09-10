@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
     "docx": "^9.5.1",
     "file-saver": "^2.0.5",
     "papaparse": "^5.5.3"
