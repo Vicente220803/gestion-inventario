@@ -6,7 +6,7 @@ import { useToasts } from '../composables/useToasts'; // Importamos notificacion
 import AppModal from '../components/AppModal.vue';
 
 // Importamos TODAS las funciones que necesitamos
-const { productsWithSku, materialStock, updateFullStock, loadFromLocalStorage } = useInventory();
+const { productsWithSku, materialStock, updateFullStock,  loadFromServer } = useInventory();
 const { showSuccess } = useToasts();
 
 const isEditModalVisible = ref(false);
@@ -25,7 +25,7 @@ function saveStockChanges() {
     updateFullStock(editableStock.value);
     
     // 2. Forzamos la recarga de datos para asegurar la reactividad
-    loadFromLocalStorage(); 
+     loadFromServer(); 
     
     // 3. Cerramos el modal y notificamos
     isEditModalVisible.value = false;
