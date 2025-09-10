@@ -31,7 +31,7 @@ function registerIncoming() {
   // Creamos el objeto del movimiento.
   const movementData = {
     fechaPedido: incomingDate.value, // Para entradas, la fecha del pedido es la fecha de entrada
-    fechaEntrega: '',
+    fechaEntrega: null,
     pallets: Number(incomingPallets.value),
     items: [{ desc: incomingItem.value, sku: incomingSku.value, cantidad: Number(incomingPallets.value) }],
     tipo: 'Entrada',
