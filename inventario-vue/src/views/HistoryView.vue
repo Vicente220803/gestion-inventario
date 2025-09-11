@@ -1,5 +1,7 @@
 <!-- RUTA: src/views/HistoryView.vue (VERSIÓN FINAL COMPLETA) -->
 <script setup>
+import { useConfirm } from '../composables/useConfirm';
+const { show: showConfirm } = useConfirm(); // Le damos un alias 'showConfirm' para no confundirlo
 import { ref, computed } from 'vue';
 import { useInventory } from '../composables/useInventory';
 import AppModal from '../components/AppModal.vue';
@@ -115,9 +117,13 @@ function handleCalculateSummary() {
 }
 
 // FUNCIÓN DE ANULACIÓN CORREGIDA
-function handleDeleteMovement(movement) {
-  if (confirm('¿Estás seguro de que quieres anular este movimiento? El stock se actualizará y el movimiento se borrará del historial.')) {
-    // Pasamos los datos que la nueva función necesita: el ID, el tipo y los items.
+async function handleDeleteMovement(movement) {
+  const confirmed = await showConfirm(
+    'Confirmar Anulación', // Título del modal
+    '¿Estás seguro de que quieres anular este movimiento? El stock se actualizará y el movimiento se borrará del historial. Esta acción no se puede deshacer.' // Mensaje
+  );
+  
+  if (confirmed) {
     deleteMovement(movement.id, movement.tipo, movement.items);
   }
 }
