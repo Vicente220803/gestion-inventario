@@ -1,12 +1,14 @@
-<!-- RUTA: src/views/NewOrderView.vue (CON TUS CLAVES FINALES) -->
+<!-- RUTA: src/views/NewOrderView.vue (VERSIÓN FINAL COMPLETA) -->
 <script setup>
 import { ref, computed } from 'vue';
 import { useInventory } from '../composables/useInventory';
 import { useToasts } from '../composables/useToasts';
+import { useConfirm } from '../composables/useConfirm'; // Importamos el modal de confirmación
 import emailjs from '@emailjs/browser';
 
 const { productsWithSku, materialStock, addMovement } = useInventory();
 const { showSuccess, showError } = useToasts();
+const { show: showConfirm } = useConfirm(); // Preparamos la función del modal
 
 const fechaPedido = ref(new Date().toISOString().slice(0, 10));
 const fechaEntrega = ref('');
@@ -31,7 +33,6 @@ function updateSku(item) {
   item.sku = productsWithSku.value[item.desc]?.sku || '';
 }
 
-// FUNCIÓN PARA ENVIAR UN PEDIDO NORMAL
 async function submitOrder() {
   if (!fechaEntrega.value) { return showError('Falta la fecha de entrega.'); }
   const validItems = items.value.filter(item => item.desc && item.cantidad > 0);
@@ -54,10 +55,14 @@ async function submitOrder() {
   };
 
   try {
-    // CLAVES PARA EL PEDIDO DE TRASLADO
-    await emailjs.send('service_drwrn5j', 'template_7989bja', templateParams, 'fStsqeIF2s8ykXpTk');
+    await emailjs.send(
+      'service_est8vb5', 
+      'template_akvry63', // <-- RECUERDA RELLENAR ESTAS CLAVES
+      templateParams, 
+      'CfY2CEwXzbg4TVoFn'
+    );
     
-    addMovement({
+    await addMovement({
       fechaPedido: fechaPedido.value,
       fechaEntrega: fechaEntrega.value,
       pallets: totalPallets,
@@ -65,6 +70,7 @@ async function submitOrder() {
       items: JSON.parse(JSON.stringify(validItems)),
       tipo: 'Salida',
     });
+
     showSuccess('¡Pedido registrado y correo enviado con éxito!');
     fechaEntrega.value = '';
     comentarios.value = '';
@@ -77,24 +83,32 @@ async function submitOrder() {
   }
 }
 
-// FUNCIÓN PARA NOTIFICAR QUE NO HAY PEDIDO
+// FUNCIÓN "SIN PEDIDO" ACTUALIZADA CON EL MODAL
 async function sendNoOrderNotification() {
-  if (!confirm(`¿Estás seguro de que quieres notificar que no hay pedido para hoy (${fechaPedido.value})?`)) {
-    return;
-  }
-  isSending.value = true;
-  const templateParams = {
-    fecha_actual: fechaPedido.value,
-  };
-  try {
-    // CLAVES PARA LA NOTIFICACIÓN "SIN PEDIDO"
-    await emailjs.send('service_drwrn5j', 'template_6dygb3e', templateParams, 'fStsqeIF2s8ykXpTk');
-    showSuccess(`Notificación de "Sin Pedido" enviada con éxito.`);
-  } catch (error) {
-    console.error('Error de EmailJS:', error);
-    showError('Hubo un error al enviar la notificación.');
-  } finally {
-    isSending.value = false;
+  const confirmed = await showConfirm(
+    'Confirmar Notificación', // Título del modal
+    `¿Estás seguro de que quieres notificar que no hay pedido de traslado para el día de hoy (${fechaPedido.value})?` // Mensaje
+  );
+  
+  if (confirmed) {
+    isSending.value = true;
+    const templateParams = {
+      fecha_actual: fechaPedido.value,
+    };
+    try {
+      await emailjs.send(
+        'service_est8vb5', 
+        'template_z1qinpb', // <-- RECUERDA RELLENAR ESTAS CLAVES
+        templateParams, 
+        'CfY2CEwXzbg4TVoFn'
+      );
+      showSuccess(`Notificación de "Sin Pedido" enviada con éxito.`);
+    } catch (error) {
+      console.error('Error de EmailJS:', error);
+      showError('Hubo un error al enviar la notificación.');
+    } finally {
+      isSending.value = false;
+    }
   }
 }
 </script>
