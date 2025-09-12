@@ -1,50 +1,86 @@
-<!-- Ruta: src/views/StockView.vue (VERSIÓN CORREGIDA) -->
+<!-- Ruta: src/views/StockView.vue (VERSIÓN CON AJUSTE DE INVENTARIO) -->
 <script setup>
 import { ref, computed } from 'vue';
 import { useInventory } from '../composables/useInventory';
-import { useToasts } from '../composables/useToasts'; // Importamos notificaciones
+import { useToasts } from '../composables/useToasts';
 import AppModal from '../components/AppModal.vue';
 
-// Importamos TODAS las funciones que necesitamos
-const { productsWithSku, materialStock, updateFullStock,  loadFromServer } = useInventory();
-const { showSuccess } = useToasts();
+const { productsWithSku, materialStock, addMovement } = useInventory();
+const { showSuccess, showError } = useToasts();
 
-const isEditModalVisible = ref(false);
-const editableStock = ref({});
+const isAdjustModalVisible = ref(false);
+const adjustmentReason = ref('');
+// 'editableStock' ahora representa el stock REAL que hemos contado
+const realStockCount = ref({});
 
 const productNames = computed(() => Object.keys(productsWithSku.value));
 
-function openEditModal() {
-  editableStock.value = JSON.parse(JSON.stringify(materialStock.value));
-  isEditModalVisible.value = true;
+function openAdjustModal() {
+  // Rellenamos el formulario con los valores que el sistema CREE que hay
+  realStockCount.value = JSON.parse(JSON.stringify(materialStock.value));
+  adjustmentReason.value = ''; // Limpiamos el motivo
+  isAdjustModalVisible.value = true;
 }
 
-function saveStockChanges() {
-  if (confirm('¿Estás seguro? Esta acción modificará permanentemente el stock actual y no se puede deshacer.')) {
-    // 1. Guardamos el nuevo stock
-    updateFullStock(editableStock.value);
-    
-    // 2. Forzamos la recarga de datos para asegurar la reactividad
-     loadFromServer(); 
-    
-    // 3. Cerramos el modal y notificamos
-    isEditModalVisible.value = false;
-    showSuccess('¡Stock actualizado con éxito!');
+async function handleStockAdjustment() {
+  if (!adjustmentReason.value) {
+    return showError('Debes especificar un motivo para el ajuste.');
   }
+
+  // Calculamos la diferencia para cada producto
+  const adjustments = [];
+  let totalAdjustmentPallets = 0;
+
+  for (const desc in productsWithSku.value) {
+    const sku = productsWithSku.value[desc].sku;
+    const systemStock = materialStock.value[sku] || 0;
+    const realStock = realStockCount.value[sku] || 0;
+    const difference = realStock - systemStock;
+
+    if (difference !== 0) {
+      adjustments.push({
+        desc: desc,
+        sku: sku,
+        cantidad: Math.abs(difference) // La cantidad en el item es siempre positiva
+      });
+      totalAdjustmentPallets += difference; // El total sí puede ser negativo
+    }
+  }
+
+  if (adjustments.length === 0) {
+    isAdjustModalVisible.value = false;
+    return showSuccess('No se detectaron diferencias. No se ha registrado ningún ajuste.');
+  }
+
+  // Creamos un único movimiento de tipo "Ajuste"
+  const movementData = {
+    fechaPedido: new Date().toISOString().slice(0, 10), // Fecha del ajuste
+    fechaEntrega: new Date().toISOString().slice(0, 10), // Usamos la misma fecha para que el efecto sea inmediato
+    comentarios: `Ajuste de inventario: ${adjustmentReason.value}`,
+    // El tipo de movimiento será 'Entrada' o 'Salida' según el ajuste total
+    tipo: totalAdjustmentPallets > 0 ? 'Entrada' : 'Salida',
+    pallets: Math.abs(totalAdjustmentPallets),
+    items: adjustments,
+    isAdjustment: true, // Propiedad especial para identificarlo
+  };
+
+  await addMovement(movementData);
+  
+  showSuccess('Ajuste de inventario registrado con éxito en el historial.');
+  isAdjustModalVisible.value = false;
 }
 </script>
 
 <template>
   <div class="text-center">
     <h2 class="text-2xl font-bold text-gray-800 mb-4">Stock Actual por Material</h2>
-
     <div class="mb-4">
-      <button @click="openEditModal" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
-        Editar Stock Manualmente
+      <button @click="openAdjustModal" class="px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-md hover:bg-orange-700">
+        Registrar Ajuste de Inventario
       </button>
     </div>
-
-    <div class="bg-indigo-100 rounded-xl shadow-inner p-4">
+    <!-- ... (La tabla de stock no cambia) ... -->
+     <div class="bg-indigo-100 rounded-xl shadow-inner p-4">
       <table v-if="productNames.length > 0" class="w-full text-left border-collapse table-auto">
         <thead>
           <tr class="text-gray-600">
@@ -65,26 +101,27 @@ function saveStockChanges() {
     </div>
   </div>
 
+  <!-- NUEVO MODAL DE AJUSTE -->
   <AppModal 
-    v-if="isEditModalVisible" 
-    title="Editar Stock Manualmente"
-    @close="isEditModalVisible = false"
-    @confirm="saveStockChanges"
+    v-if="isAdjustModalVisible" 
+    title="Registrar Ajuste de Inventario"
+    @close="isAdjustModalVisible = false"
+    @confirm="handleStockAdjustment"
   >
-    <p class="text-sm text-red-600 bg-red-100 p-3 rounded-md mb-4">
-      <strong>Atención:</strong> Estás a punto de sobrescribir el stock actual. Esta acción es irreversible.
+    <p class="text-sm text-orange-600 bg-orange-100 p-3 rounded-md mb-4">
+      <strong>Atención:</strong> Introduce el stock **real** que has contado. El sistema creará un movimiento de ajuste para corregir la diferencia. Esta acción quedará registrada en el historial.
     </p>
-
-    <div class="space-y-4 max-h-96 overflow-y-auto">
-      <div v-for="(product, desc) in productsWithSku" :key="product.sku">
-        <label :for="product.sku" class="block text-sm font-medium text-gray-700">{{ desc }}</label>
-        <input 
-          type="number" 
-          :id="product.sku" 
-          v-model.number="editableStock[product.sku]" 
-          min="0"
-          class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 border"
-        >
+    <div class="space-y-2">
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Motivo del Ajuste (Obligatorio)</label>
+        <input type="text" v-model="adjustmentReason" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 border">
+      </div>
+      <div class="space-y-4 max-h-80 overflow-y-auto mt-4 border-t pt-4">
+        <h4 class="font-semibold">Cantidades Reales Contadas:</h4>
+        <div v-for="(product, desc) in productsWithSku" :key="product.sku">
+          <label class="block text-sm font-medium text-gray-700">{{ desc }}</label>
+          <input type="number" v-model.number="realStockCount[product.sku]" min="0" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 border">
+        </div>
       </div>
     </div>
   </AppModal>

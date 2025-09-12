@@ -1,15 +1,14 @@
-<!-- RUTA: src/views/HistoryView.vue (VERSIÓN FINAL COMPLETA) -->
+<!-- RUTA: src/views/HistoryView.vue (VERSIÓN FINAL CON AJUSTES VISUALES) -->
 <script setup>
-import { useConfirm } from '../composables/useConfirm';
-const { show: showConfirm } = useConfirm(); // Le damos un alias 'showConfirm' para no confundirlo
 import { ref, computed } from 'vue';
 import { useInventory } from '../composables/useInventory';
+import { useConfirm } from '../composables/useConfirm';
 import AppModal from '../components/AppModal.vue';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import { saveAs } from 'file-saver';
 
-// Importamos la firma correcta de 'deleteMovement'
 const { movements, deleteMovement, materialStock } = useInventory();
+const { show: showConfirm } = useConfirm();
 
 const startDate = ref('');
 const endDate = ref('');
@@ -36,15 +35,12 @@ function performCalculation() {
     const summary = [];
     const start = new Date(startDate.value + 'T00:00:00');
     const end = new Date(endDate.value + 'T00:00:00');
-    
     let stockTemporal = JSON.parse(JSON.stringify(materialStock.value));
-
     const futureMovements = movements.value.filter(m => {
         const dateStr = m.tipo === 'Salida' ? m.fechaEntrega : m.fechaPedido;
         if (!dateStr) return false;
         return new Date(dateStr + 'T00:00:00') >= start;
     });
-
     for (const movement of futureMovements) {
         if (movement.tipo === 'Entrada') {
             movement.items.forEach(item => { stockTemporal[item.sku] = (stockTemporal[item.sku] || 0) - item.cantidad; });
@@ -52,9 +48,7 @@ function performCalculation() {
             movement.items.forEach(item => { stockTemporal[item.sku] = (stockTemporal[item.sku] || 0) + item.cantidad; });
         }
     }
-
     let stockInicialDelPeriodo = Object.values(stockTemporal).reduce((sum, val) => sum + val, 0);
-
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
         const currentDateStr = d.toISOString().slice(0, 10);
         let dailyIncomings = 0;
@@ -78,7 +72,6 @@ function generateAndDownloadWord(data) {
     const costOutgoings = totalOutgoings * 1.75;
     const costStorage = totalStoragePallets * 0.20;
     const grandTotalCost = costIncomings + costOutgoings + costStorage;
-
     const doc = new Document({
         sections: [{
             children: [
@@ -96,7 +89,6 @@ function generateAndDownloadWord(data) {
             ],
         }],
     });
-
     Packer.toBlob(doc).then(blob => {
         saveAs(blob, `Informe_Inventario_${startDate.value}_a_${endDate.value}.docx`);
     });
@@ -105,24 +97,19 @@ function generateAndDownloadWord(data) {
 function handleCalculateSummary() {
     if (!startDate.value || !endDate.value) { alert('Selecciona un rango de fechas.'); return; }
     if (new Date(startDate.value) > new Date(endDate.value)) { alert('La fecha de inicio no puede ser posterior a la de fin.'); return; }
-    
     const results = performCalculation();
     summaryData.value = results;
-    
     if (results && results.length > 0) {
         generateAndDownloadWord(results);
     }
-    
     isSummaryModalVisible.value = true;
 }
 
-// FUNCIÓN DE ANULACIÓN CORREGIDA
 async function handleDeleteMovement(movement) {
   const confirmed = await showConfirm(
-    'Confirmar Anulación', // Título del modal
-    '¿Estás seguro de que quieres anular este movimiento? El stock se actualizará y el movimiento se borrará del historial. Esta acción no se puede deshacer.' // Mensaje
+    'Confirmar Anulación',
+    '¿Estás seguro de que quieres anular este movimiento? El stock se actualizará y el movimiento se borrará del historial.'
   );
-  
   if (confirmed) {
     deleteMovement(movement.id, movement.tipo, movement.items);
   }
@@ -143,7 +130,10 @@ async function handleDeleteMovement(movement) {
                 <button @click="handleDeleteMovement(movement)" class="absolute top-2 right-2 px-2 py-1 text-xs text-red-700 bg-red-100 rounded-md">Anular</button>
                 <p><strong>Fecha:</strong> {{ movement.tipo === 'Salida' ? movement.fechaEntrega : movement.fechaPedido }}</p>
                 <p v-if="movement.tipo === 'Salida'"><strong>Fecha de Pedido:</strong> {{ movement.fechaPedido }}</p>
-                <p>Movimiento: <span :class="movement.tipo === 'Salida' ? 'text-red-600' : 'text-green-600'">{{ movement.tipo }}</span></p>
+                
+                <!-- ESTA ES LA LÍNEA MODIFICADA -->
+                <p>Movimiento: <span :class="movement.tipo === 'Salida' ? 'text-red-600' : 'text-green-600'">{{ movement.isAdjustment ? `Ajuste (${movement.tipo})` : movement.tipo }}</span></p>
+                
                 <p>Total de Pallets: {{ movement.pallets }}</p>
                 <div v-if="movement.items.length > 0">
                     <p><strong>Artículos:</strong></p>
