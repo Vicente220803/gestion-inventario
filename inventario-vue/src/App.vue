@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'; // Importamos onMounted
+import { ref, computed, watch, onMounted } from 'vue';
 import { useAuth } from './composables/useAuth';
 import { useInventory } from './composables/useInventory';
 import { useConfirm } from './composables/useConfirm';
@@ -15,17 +15,11 @@ import HistoryView from './views/HistoryView.vue';
 import SettingsView from './views/SettingsView.vue';
 import AppModal from './components/AppModal.vue';
 
-// Obtenemos la función checkSession que ahora se exporta desde useAuth
 const { user, profile, signOut, isSessionLoading, checkSession } = useAuth();
 const { loadFromServer } = useInventory();
 const { isVisible, title, message, onConfirm, onCancel } = useConfirm();
 
-// --- TU LÓGICA ORIGINAL SE MANTIENE INTACTA ---
-
-// Estado local de la UI
-const activeTab = ref('form');
-
-// Mapa de vistas
+const activeTab = ref(null);
 const views = {
   form: NewOrderView,
   stock: StockView,
@@ -34,35 +28,30 @@ const views = {
   history: HistoryView
 };
 
-// ¡LÓGICA DE PERMISOS!
-// Esta propiedad computada decide qué pestañas mostrar basándose en el rol del usuario.
 const availableTabs = computed(() => {
   const userRole = profile.value?.role;
-  
-  if (userRole === 'admin') {
-    return ['form', 'stock', 'incomings', 'settings', 'history']; // El admin ve todo
-  }
-  if (userRole === 'operario') {
-    return ['form', 'stock']; // El operario solo ve "Nuevo Pedido" y "Stock"
-  }
-  return []; // Si no hay rol (o está cargando), no se muestra nada
+  if (userRole === 'admin') return ['form', 'stock', 'incomings', 'settings', 'history'];
+  if (userRole === 'operario') return ['form', 'stock'];
+  return [];
 });
 
-// Este 'watcher' reacciona cuando el usuario inicia sesión.
-// Cuando 'user' cambia de null a un objeto de usuario, cargamos los datos del inventario.
-watch(user, (newUser, oldUser) => {
-  if (newUser && !oldUser) {
+watch(profile, (newProfile, oldProfile) => {
+  if (newProfile && !oldProfile) {
     loadFromServer();
-    // Al iniciar sesión, nos aseguramos de que la pestaña por defecto sea una a la que tiene acceso
-    if (!availableTabs.value.includes(activeTab.value)) {
-        activeTab.value = availableTabs.value[0] || 'form';
+    
+    let initialTabs = [];
+    if (newProfile.role === 'admin') {
+      initialTabs = ['form', 'stock', 'incomings', 'settings', 'history'];
+    } else if (newProfile.role === 'operario') {
+      initialTabs = ['form', 'stock'];
+    }
+    
+    if (initialTabs.length > 0) {
+      activeTab.value = initialTabs[0];
     }
   }
 });
 
-// --- SOLUCIÓN A LA CARGA INFINITA ---
-// Cuando el componente App.vue se monta, llamamos explícitamente a checkSession.
-// Esto iniciará el proceso de autenticación.
 onMounted(() => {
   checkSession();
 });
@@ -70,12 +59,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <!-- 1. MIENTRAS SE VERIFICA LA SESIÓN, MOSTRAMOS UN MENSAJE DE CARGA -->
   <div v-if="isSessionLoading" class="flex items-center justify-center min-h-screen bg-gray-100">
     <p class="text-xl text-gray-500 animate-pulse">Cargando aplicación...</p>
   </div>
 
-  <!-- 2. UNA VEZ VERIFICADO, SI HAY USUARIO Y PERFIL, MOSTRAMOS LA APLICACIÓN -->
   <div v-else-if="user && profile">
     <div class="max-w-4xl mx-auto bg-white shadow-lg rounded-xl overflow-hidden md:p-8 p-4">
       <TheHeader />
@@ -87,9 +74,10 @@ onMounted(() => {
       />
 
       <main>
-        <component v-if="availableTabs.includes(activeTab)" :is="views[activeTab]" />
+        <component v-if="activeTab" :is="views[activeTab]" />
+        
         <div v-else class="text-center p-8">
-          <p class="text-lg text-red-600">No tienes permiso para acceder a esta sección.</p>
+          <p class="text-lg text-red-600">No tienes ninguna sección disponible.</p>
         </div>
       </main>
 
@@ -102,10 +90,8 @@ onMounted(() => {
     </div>
   </div>
 
-  <!-- 3. SI NO HAY SESIÓN ACTIVA, MOSTRAMOS LA VISTA DE LOGIN -->
   <LoginView v-else />
 
-  <!-- Modal de confirmación global -->
   <AppModal
     v-if="isVisible"
     :title="title"
@@ -117,7 +103,6 @@ onMounted(() => {
 </template>
 
 <style>
-/* Los estilos globales no cambian */
 body {
     font-family: 'Inter', sans-serif;
     background-color: #f3f4f6;
