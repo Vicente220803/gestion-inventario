@@ -16,7 +16,7 @@ import SettingsView from './views/SettingsView.vue';
 import AppModal from './components/AppModal.vue';
 
 const { user, profile, signOut, isSessionLoading, checkSession } = useAuth();
-const { loadFromServer } = useInventory();
+const { loadFromServer, fetchPendingIncomings } = useInventory();
 const { isVisible, title, message, onConfirm, onCancel } = useConfirm();
 
 const activeTab = ref(null);
@@ -38,7 +38,7 @@ const availableTabs = computed(() => {
 watch(profile, (newProfile, oldProfile) => {
   if (newProfile && !oldProfile) {
     loadFromServer();
-    
+     fetchPendingIncomings(); // Pedimos también las entradas pendientes
     let initialTabs = [];
     if (newProfile.role === 'admin') {
       initialTabs = ['form', 'stock', 'incomings', 'settings', 'history'];
