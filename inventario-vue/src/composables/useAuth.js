@@ -1,32 +1,59 @@
-// Ruta: src/composables/useAuth.js (CORREGIDO)
-import { ref } from 'vue'; // Ya no necesitamos onMounted aquí
+// Ruta: src/composables/useAuth.js (VERSIÓN FINAL CORREGIDA)
+import { ref } from 'vue';
 import { supabase } from '../supabase';
 import { useToasts } from './useToasts';
 
+// Estado global reactivo
 const user = ref(null);
 const profile = ref(null);
-const isSessionLoading = ref(true);
+const isSessionLoading = ref(true); // Siempre empieza en 'true' al cargar la web
 
 export function useAuth() {
   const { showError, showSuccess } = useToasts();
 
+  /**
+   * Inicia sesión. Controla el estado de carga global.
+   */
   const signIn = async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) { showError(error.message); return; }
-    user.value = data.user;
-    await fetchUserProfile(data.user.id);
-    showSuccess('¡Bienvenido!');
+    isSessionLoading.value = true;
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        showError(error.message);
+        // IMPORTANTE: Si hay error, también tenemos que salir del estado de carga
+        isSessionLoading.value = false; 
+        return;
+      }
+      user.value = data.user;
+      await fetchUserProfile(data.user.id);
+      showSuccess('¡Bienvenido!');
+    } catch (e) {
+      showError('Ocurrió un error inesperado al iniciar sesión.');
+    } finally {
+      // Al final del proceso de login, SIEMPRE quitamos el estado de carga
+      isSessionLoading.value = false;
+    }
   };
 
+  /**
+   * Cierra la sesión.
+   */
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) { showError(error.message); return; }
+    await supabase.auth.signOut();
     user.value = null;
     profile.value = null;
   };
 
+  /**
+   * Obtiene los datos del perfil del usuario (rol, nombre, etc.).
+   */
   const fetchUserProfile = async (userId) => {
-    const { data, error } = await supabase.from('profiles').select('role').eq('id', userId).single();
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single();
+    
     if (error) {
       console.error("Error al obtener el perfil:", error);
       profile.value = null;
@@ -35,8 +62,10 @@ export function useAuth() {
     }
   };
 
+  /**
+   * Comprueba si ya existe una sesión al cargar la aplicación.
+   */
   const checkSession = async () => {
-    // Ya no seteamos isSessionLoading a true aquí, porque empieza como true por defecto.
     try {
       const { data } = await supabase.auth.getSession();
       if (data.session) {
@@ -46,11 +75,11 @@ export function useAuth() {
     } catch (e) {
       console.error("Error al comprobar la sesión:", e);
     } finally {
-      isSessionLoading.value = false; // La carga siempre termina.
+      // ¡ESTA ERA LA LÍNEA QUE FALTABA!
+      // Al terminar de comprobar, haya sesión o no, la carga inicial ha terminado.
+      isSessionLoading.value = false;
     }
   };
-
-  // --- HEMOS ELIMINADO EL onMounted DE AQUÍ ---
 
   return {
     user,
@@ -58,6 +87,6 @@ export function useAuth() {
     isSessionLoading,
     signIn,
     signOut,
-    checkSession, // <-- AHORA EXPORTAMOS LA FUNCIÓN
+    checkSession,
   };
 }

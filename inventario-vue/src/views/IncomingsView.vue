@@ -1,88 +1,71 @@
-<!-- Ruta: src/views/IncomingsView.vue (VERSIÓN FINAL CON NOTIFICACIÓN) -->
 <script setup>
-import { ref, computed } from 'vue';
+import { computed } from 'vue';
 import { useInventory } from '../composables/useInventory';
-import { useToasts } from '../composables/useToasts';
+import { useConfirm } from '../composables/useConfirm';
 
-const { productsWithSku, addMovement } = useInventory();
-const { showSuccess, showError } = useToasts();
+const { movements, pendingIncomings, approvePendingIncoming } = useInventory();
+const { showConfirm } = useConfirm();
 
-const incomingDate = ref(new Date().toISOString().slice(0, 10));
-const incomingPallets = ref(1);
-const incomingItem = ref('');
-const incomingSku = ref('');
+// Filtramos el historial para mostrar solo los movimientos de entrada
+const incomingMovements = computed(() => {
+  return movements.value.filter(m => m.tipo === 'Entrada');
+});
 
-const productNames = computed(() => Object.keys(productsWithSku.value));
-
-function updateIncomingSku() {
-  const product = productsWithSku.value[incomingItem.value];
-  incomingSku.value = product ? product.sku : '';
-}
-
-async function registerIncoming() {
-  if (!incomingDate.value || !incomingItem.value || !incomingSku.value || incomingPallets.value <= 0) {
-    return showError('Por favor, completa todos los campos correctamente.');
-  }
-
-  const movementData = {
-    fechaPedido: incomingDate.value,
-    fechaEntrega: null,
-    comentarios: null, // Lo enviamos como null para que la BD lo acepte
-    pallets: Number(incomingPallets.value),
-    items: [{ desc: incomingItem.value, sku: incomingSku.value, cantidad: Number(incomingPallets.value) }],
-    tipo: 'Entrada',
-  };
-
-  // addMovement ya se encarga de mostrar el error si algo falla
-  await addMovement(movementData);
-
-  // =================================================================
-  // == AQUÍ AÑADIMOS LA NOTIFICACIÓN DE ÉXITO ==
-  // =================================================================
-  // (Nota: addMovement ya recarga los datos, pero la notificación de éxito
-  // la ponemos aquí para que sea específica de esta acción)
-  showSuccess(`Entrada de ${movementData.pallets} pallets registrada con éxito.`);
-
-
-  // Reseteamos el formulario
-  incomingItem.value = '';
-  incomingSku.value = '';
-  incomingPallets.value = 1;
+function handleApprove(entry) {
+  showConfirm(
+    'Aprobar Entrada',
+    'Esto marcará la entrada como aprobada. Asegúrate de haber creado el movimiento correspondiente.',
+    () => {
+      // Por ahora, al confirmar, solo se actualiza el estado.
+      // En el futuro, aquí se abriría el modal para rellenar los datos del movimiento.
+      approvePendingIncoming(entry);
+    }
+  );
 }
 </script>
 
 <template>
-  <div class="space-y-6">
-    <h2 class="text-2xl font-bold text-gray-800">Registrar Entrada de Material</h2>
-
-    <datalist id="products-incomings">
-      <option v-for="name in productNames" :key="name" :value="name"></option>
-    </datalist>
-
+  <div class="space-y-8">
+    
+    <!-- SECCIÓN DE ENTRADAS PENDIENTES DE REVISIÓN -->
     <div>
-      <label class="block text-sm font-medium text-gray-700">Fecha de Entrada</label>
-      <input type="date" v-model="incomingDate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 bg-gray-50 border">
+      <h2 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">Entradas Pendientes de Revisión</h2>
+      
+      <div v-if="pendingIncomings.length > 0" class="space-y-4">
+        <div v-for="entry in pendingIncomings" :key="entry.id" class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="font-semibold">Albarán recibido el: <span class="font-normal">{{ new Date(entry.created_at).toLocaleString() }}</span></p>
+              <a :href="entry.file_url" target="_blank" class="text-sm text-blue-600 hover:underline">Ver Albarán Original en Drive</a>
+            </div>
+            <button @click="handleApprove(entry)" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors">
+              Aprobar
+            </button>
+          </div>
+          <div class="mt-4">
+            <p class="text-sm font-semibold text-gray-600 mb-1">Texto extraído por la IA:</p>
+            <pre class="bg-white p-3 rounded-md text-xs text-gray-700 whitespace-pre-wrap font-mono h-40 overflow-y-auto border">{{ entry.parsed_data.raw_text }}</pre>
+          </div>
+        </div>
+      </div>
+
+      <div v-else>
+        <p class="text-gray-500">No hay nuevas entradas pendientes de revisión.</p>
+      </div>
     </div>
-    
+
+    <!-- SECCIÓN DE HISTORIAL DE ENTRADAS (tu código existente) -->
     <div>
-      <label class="block text-sm font-medium text-gray-700">Cantidad de Pallets que entraron</label>
-      <input type="number" v-model="incomingPallets" min="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 bg-gray-50 border">
+      <h2 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">Historial de Entradas</h2>
+      
+      <div v-if="incomingMovements.length > 0">
+        <!-- Aquí iría tu tabla o lista para mostrar 'incomingMovements' -->
+        <p>Tu historial de entradas aparecerá aquí.</p>
+      </div>
+      <div v-else>
+        <p class="text-gray-500">No hay movimientos de entrada en el historial.</p>
+      </div>
     </div>
-    
-    <div class="mt-4">
-      <label class="block text-sm font-medium text-gray-700">Descripción del Artículo</label>
-      <input type="text" list="products-incomings" v-model="incomingItem" @input="updateIncomingSku" placeholder="Escribe para buscar..." class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 border">
-    </div>
-    
-    <div class="mt-4">
-      <label class="block text-sm font-medium text-gray-700">SKU / Código</label>
-      <input type="text" v-model="incomingSku" placeholder="Código" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 border" readonly>
-    </div>
-    
-    <div class="text-center mt-6">
-      <button @click="registerIncoming" class="w-full md:w-auto px-8 py-3 bg-green-600 text-white font-semibold rounded-full shadow-lg hover:bg-green-700">
-        Registrar Entrada
-      </button>
-    </div>
+
   </div>
 </template>
