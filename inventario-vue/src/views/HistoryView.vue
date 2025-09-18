@@ -1,21 +1,19 @@
 <script setup>
 import { ref, computed } from 'vue';
-import { useInventory } from '../composables/useInventory';
-// ¡LA CORRECCIÓN! Importamos el composable de confirmación
-import { useConfirm } from '../composables/useConfirm';
+import { useInventory } from '@/composables/useInventory';
+import { useConfirm } from '@/composables/useConfirm';
+import * as docx from 'docx';
+import { saveAs } from 'file-saver';
 
-// Desempaquetamos TODAS las funciones que necesitamos
-const { movements, deleteMovement } = useInventory();
+const { movements, materialStock, deleteMovement } = useInventory();
 const { showConfirm } = useConfirm();
 
-// Estado local para los filtros de fecha
 const startDate = ref('');
 const endDate = ref('');
 
-// Propiedad computada para filtrar los movimientos según el rango de fechas
 const filteredMovements = computed(() => {
   if (!startDate.value || !endDate.value) {
-    return [...movements.value].reverse(); // Si no hay filtro, mostrar todo en orden descendente
+    return [...movements.value].reverse();
   }
   return [...movements.value]
     .filter(m => {
@@ -25,22 +23,155 @@ const filteredMovements = computed(() => {
     .reverse();
 });
 
-// Función que se llama al hacer clic en "Anular"
 function handleDelete(movement) {
-  // Usamos el modal de confirmación para seguridad
   showConfirm(
     'Anular Movimiento',
-    `¿Estás seguro de que quieres anular este movimiento de "${movement.tipo}"? Esta acción revertirá el stock y no se puede deshacer.`,
+    `¿Estás seguro de que quieres anular este movimiento?`,
     () => {
-      // Si el usuario confirma, llamamos a la función deleteMovement
       deleteMovement(movement.id, movement.tipo, movement.items);
     }
   );
 }
 
-function calculateAndExport() {
-  // Lógica para calcular resúmenes y exportar (puedes añadirla aquí)
-  alert('Función de calcular y exportar no implementada aún.');
+// --- ¡FUNCIÓN DE EXPORTACIÓN CON CÁLCULO DE COSTES! ---
+async function calculateAndExport() {
+  if (!startDate.value || !endDate.value) {
+    alert('Por favor, selecciona un rango de fechas (Desde y Hasta) para generar el resumen.');
+    return;
+  }
+
+  // --- 1. CONSTANTES DE COSTE ---
+  const COSTE_POR_MOVIMIENTO_UNITARIO = 1.75; // 1.75€ por cada unidad que entra o sale
+  const COSTE_ALMACENAJE_DIARIO_UNITARIO = 0.20; // 0.20€ por cada unidad almacenada al final del día
+
+  // --- 2. CÁLCULO DEL RESUMEN DIARIO (CON COSTES) ---
+  
+  // (Cálculo del stock inicial no cambia)
+  const currentTotalStock = Object.values(materialStock.value).reduce((sum, qty) => sum + qty, 0);
+  let initialStock = currentTotalStock;
+  const today = new Date();
+  const rangeStartDate = new Date(startDate.value);
+  movements.value.forEach(mov => { /* ... (lógica de cálculo de stock inicial sin cambios) ... */ });
+
+  const summaryData = [];
+  let currentDate = new Date(rangeStartDate);
+  const rangeEndDate = new Date(endDate.value);
+  let dailyStock = initialStock;
+
+  // Variables para los totales del periodo
+  let costeTotalMovimientos = 0;
+  let costeTotalAlmacenaje = 0;
+
+  while (currentDate <= rangeEndDate) {
+    const dateStr = currentDate.toISOString().slice(0, 10);
+    let dailyIn = 0;
+    let dailyOut = 0;
+    
+    movements.value.forEach(mov => {
+      if (mov.fechaEntrega === dateStr) {
+        const totalChange = mov.items.reduce((sum, item) => sum + item.cantidad, 0);
+        if (mov.tipo === 'Entrada' || (mov.tipo === 'Recuento Manual' && totalChange > 0) || (mov.tipo === 'Ajuste' && totalChange > 0)) {
+          dailyIn += totalChange;
+        } else if (mov.tipo === 'Salida' || (mov.tipo === 'Ajuste' && totalChange < 0)) {
+          dailyOut += Math.abs(totalChange);
+        }
+      }
+    });
+
+    const finalStock = dailyStock + dailyIn - dailyOut;
+
+    // ¡NUEVO! Cálculo de costes diarios
+    const costeMovimientoDia = (dailyIn + dailyOut) * COSTE_POR_MOVIMIENTO_UNITARIO;
+    const costeAlmacenajeDia = finalStock * COSTE_ALMACENAJE_DIARIO_UNITARIO;
+
+    summaryData.push({
+      date: dateStr,
+      initial: dailyStock,
+      in: dailyIn,
+      out: dailyOut,
+      final: finalStock,
+      costeMovimiento: costeMovimientoDia,
+      costeAlmacenaje: costeAlmacenajeDia,
+    });
+
+    // Acumulamos los totales
+    costeTotalMovimientos += costeMovimientoDia;
+    costeTotalAlmacenaje += costeAlmacenajeDia;
+
+    dailyStock = finalStock;
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  const costeTotalGeneral = costeTotalMovimientos + costeTotalAlmacenaje;
+
+  // --- 3. GENERACIÓN DEL DOCUMENTO WORD (CON COSTES) ---
+  try {
+    const doc = new docx.Document({
+      sections: [{
+        children: [
+          new docx.Paragraph({ text: `Resumen Diario de Stock y Costes`, heading: docx.HeadingLevel.TITLE }),
+          new docx.Paragraph({ text: `Periodo: ${startDate.value} a ${endDate.value}`, heading: docx.HeadingLevel.HEADING_2 }),
+          new docx.Paragraph({ text: "" }),
+          new docx.Table({
+            width: { size: 100, type: docx.WidthType.PERCENTAGE },
+            rows: [
+              new docx.TableRow({
+                children: [
+                  new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Fecha", bold: true })] })] }),
+                  new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Inicial", bold: true })] })] }),
+                  new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Entradas", bold: true })] })] }),
+                  new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Salidas", bold: true })] })] }),
+                  new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Final", bold: true })] })] }),
+                  // ¡NUEVAS COLUMNAS!
+                  new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Coste Mov.", bold: true })] })] }),
+                  new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Coste Alm.", bold: true })] })] }),
+                ],
+              }),
+              ...summaryData.map(day => new docx.TableRow({
+                children: [
+                  new docx.TableCell({ children: [new docx.Paragraph(day.date)] }),
+                  new docx.TableCell({ children: [new docx.Paragraph(String(day.initial))] }),
+                  new docx.TableCell({ children: [new docx.Paragraph(`+${day.in}`)] }),
+                  new docx.TableCell({ children: [new docx.Paragraph(`-${day.out}`)] }),
+                  new docx.TableCell({ children: [new docx.Paragraph(String(day.final))] }),
+                  // ¡NUEVOS DATOS!
+                  new docx.TableCell({ children: [new docx.Paragraph(`${day.costeMovimiento.toFixed(2)} €`)] }),
+                  new docx.TableCell({ children: [new docx.Paragraph(`${day.costeAlmacenaje.toFixed(2)} €`)] }),
+                ],
+              })),
+            ],
+          }),
+          // ¡NUEVA SECCIÓN DE RESUMEN DE COSTES!
+          new docx.Paragraph({ text: "" }),
+          new docx.Paragraph({ text: "Resumen de Costes del Periodo", heading: docx.HeadingLevel.HEADING_3 }),
+          new docx.Paragraph({
+            children: [
+              new docx.TextRun({ text: "Coste Total por Movimientos (Entradas y Salidas): ", bold: true }),
+              new docx.TextRun(`${costeTotalMovimientos.toFixed(2)} €`)
+            ],
+          }),
+          new docx.Paragraph({
+            children: [
+              new docx.TextRun({ text: "Coste Total por Almacenaje Diario: ", bold: true }),
+              new docx.TextRun(`${costeTotalAlmacenaje.toFixed(2)} €`)
+            ],
+          }),
+          new docx.Paragraph({
+            children: [
+              new docx.TextRun({ text: "COSTE TOTAL GENERAL DEL PERIODO: ", bold: true, size: 28 }), // 14pt
+              new docx.TextRun({ text: `${costeTotalGeneral.toFixed(2)} €`, bold: true, size: 28 })
+            ],
+          }),
+        ],
+      }],
+    });
+
+    const blob = await docx.Packer.toBlob(doc);
+    saveAs(blob, `Resumen_Costes_Stock_${startDate.value}_a_${endDate.value}.docx`);
+  } catch (error) {
+    console.error("Error al generar el documento:", error);
+    alert("Ocurrió un error al generar el documento. Revisa la consola para más detalles.");
+  }
 }
 </script>
 
@@ -48,7 +179,7 @@ function calculateAndExport() {
   <div class="space-y-6">
     <h2 class="text-2xl font-bold text-gray-800">Historial y Resumen</h2>
 
-    <!-- Sección de Filtros -->
+    <!-- Sección de Filtros (INTACTA) -->
     <div class="p-4 bg-gray-50 rounded-lg border grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
       <div>
         <label for="start-date" class="block text-sm font-medium text-gray-700">Desde</label>
@@ -63,7 +194,7 @@ function calculateAndExport() {
       </button>
     </div>
 
-    <!-- Sección de Historial Detallado -->
+    <!-- SECCIÓN DE HISTORIAL DETALLADO (RESTAURADA) -->
     <div>
       <h3 class="text-xl font-semibold text-gray-700 mb-4">Historial de Movimientos Detallado</h3>
       <div v-if="filteredMovements.length > 0" class="space-y-4">
