@@ -5,7 +5,7 @@ import { useConfirm } from '@/composables/useConfirm';
 import * as docx from 'docx';
 import { saveAs } from 'file-saver';
 
-const { movements, materialStock, deleteMovement } = useInventory();
+const { movements, materialStock, productsWithSku, deleteMovement } = useInventory();
 const { showConfirm } = useConfirm();
 
 const startDate = ref('');
@@ -33,78 +33,109 @@ function handleDelete(movement) {
   );
 }
 
-// --- ¡FUNCIÓN DE EXPORTACIÓN CON CÁLCULO DE COSTES! ---
+// ==============================================================================
+// --- FUNCIÓN DE EXPORTACIÓN (VERSIÓN FINAL Y DEFINITIVA) ---
+// ==============================================================================
 async function calculateAndExport() {
   if (!startDate.value || !endDate.value) {
     alert('Por favor, selecciona un rango de fechas (Desde y Hasta) para generar el resumen.');
     return;
   }
 
-  // --- 1. CONSTANTES DE COSTE ---
-  const COSTE_POR_MOVIMIENTO_UNITARIO = 1.75; // 1.75€ por cada unidad que entra o sale
-  const COSTE_ALMACENAJE_DIARIO_UNITARIO = 0.20; // 0.20€ por cada unidad almacenada al final del día
+  const COSTE_POR_MOVIMIENTO_UNITARIO = 1.75;
+  const COSTE_ALMACENAJE_DIARIO_UNITARIO = 0.20;
 
-  // --- 2. CÁLCULO DEL RESUMEN DIARIO (CON COSTES) ---
-  
-  // (Cálculo del stock inicial no cambia)
-  const currentTotalStock = Object.values(materialStock.value).reduce((sum, qty) => sum + qty, 0);
-  let initialStock = currentTotalStock;
-  const today = new Date();
-  const rangeStartDate = new Date(startDate.value);
-  movements.value.forEach(mov => { /* ... (lógica de cálculo de stock inicial sin cambios) ... */ });
+  // Ordenamos TODOS los movimientos una sola vez al principio.
+  const allMovementsSorted = [...movements.value].sort((a, b) => {
+    const dateA = new Date(a.created_at || a.fechaEntrega);
+    const dateB = new Date(b.created_at || b.fechaEntrega);
+    return dateA - dateB;
+  });
 
+  // --- 1. CÁLCULO DE STOCK INICIAL: Reconstrucción histórica hasta el día ANTERIOR al inicio del informe ---
+  const stockPorSku = {};
+  if (productsWithSku.value && typeof productsWithSku.value === 'object') {
+    Object.values(productsWithSku.value).forEach(p => {
+      stockPorSku[p.sku] = 0;
+    });
+  }
+
+  const dayBeforeStartDate = new Date(startDate.value);
+  dayBeforeStartDate.setDate(dayBeforeStartDate.getDate() - 1);
+
+  // Filtramos solo los movimientos que ocurrieron ANTES de la fecha de inicio del informe.
+  const movementsBeforeReport = allMovementsSorted.filter(m => new Date(m.fechaEntrega) <= dayBeforeStartDate);
+
+  // Aplicamos estos movimientos para obtener el estado inicial correcto.
+  movementsBeforeReport.forEach(mov => {
+    mov.items.forEach(item => {
+      const cantidad = Number(item.cantidad) || 0;
+      if (stockPorSku[item.sku] === undefined) stockPorSku[item.sku] = 0;
+
+      if (mov.tipo === 'Entrada') stockPorSku[item.sku] += cantidad;
+      else if (mov.tipo === 'Salida') stockPorSku[item.sku] -= cantidad;
+      else if (mov.tipo === 'Recuento Manual' || mov.tipo === 'Ajuste') stockPorSku[item.sku] = cantidad;
+    });
+  });
+
+  // --- 2. CÁLCULO DIARIO DENTRO DEL RANGO DEL INFORME ---
   const summaryData = [];
-  let currentDate = new Date(rangeStartDate);
+  let currentDate = new Date(startDate.value);
   const rangeEndDate = new Date(endDate.value);
-  let dailyStock = initialStock;
-
-  // Variables para los totales del periodo
   let costeTotalMovimientos = 0;
   let costeTotalAlmacenaje = 0;
 
   while (currentDate <= rangeEndDate) {
     const dateStr = currentDate.toISOString().slice(0, 10);
-    let dailyIn = 0;
-    let dailyOut = 0;
-    
-    movements.value.forEach(mov => {
-      if (mov.fechaEntrega === dateStr) {
-        const totalChange = mov.items.reduce((sum, item) => sum + item.cantidad, 0);
-        if (mov.tipo === 'Entrada' || (mov.tipo === 'Recuento Manual' && totalChange > 0) || (mov.tipo === 'Ajuste' && totalChange > 0)) {
-          dailyIn += totalChange;
-        } else if (mov.tipo === 'Salida' || (mov.tipo === 'Ajuste' && totalChange < 0)) {
-          dailyOut += Math.abs(totalChange);
-        }
-      }
+    const stockInicialDelDia = Object.values(stockPorSku).reduce((sum, qty) => sum + qty, 0);
+
+    const movementsForDay = allMovementsSorted.filter(m => m.fechaEntrega === dateStr);
+
+    let costIn = 0;
+    let costOut = 0;
+    let hasManualCount = false;
+
+    // Aplicamos los movimientos del día para actualizar el stock.
+    movementsForDay.forEach(mov => {
+        if (mov.tipo === 'Entrada') mov.items.forEach(item => costIn += Number(item.cantidad) || 0);
+        else if (mov.tipo === 'Salida') mov.items.forEach(item => costOut += Number(item.cantidad) || 0);
+        else if (mov.tipo === 'Recuento Manual' || mov.tipo === 'Ajuste') hasManualCount = true;
+        
+        mov.items.forEach(item => {
+            const cantidad = Number(item.cantidad) || 0;
+            if (stockPorSku[item.sku] === undefined) stockPorSku[item.sku] = 0;
+
+            if (mov.tipo === 'Recuento Manual' || mov.tipo === 'Ajuste') stockPorSku[item.sku] = cantidad;
+            else stockPorSku[item.sku] += (mov.tipo === 'Entrada' ? cantidad : -cantidad);
+        });
     });
 
-    const finalStock = dailyStock + dailyIn - dailyOut;
+    const finalStock = Object.values(stockPorSku).reduce((sum, qty) => sum + qty, 0);
+    const cambioNetoDelDia = finalStock - stockInicialDelDia;
+    let displayIn = cambioNetoDelDia > 0 ? cambioNetoDelDia : 0;
+    let displayOut = cambioNetoDelDia < 0 ? Math.abs(cambioNetoDelDia) : 0;
 
-    // ¡NUEVO! Cálculo de costes diarios
-    const costeMovimientoDia = (dailyIn + dailyOut) * COSTE_POR_MOVIMIENTO_UNITARIO;
+    let inText = `+${displayIn}`;
+    let outText = `-${displayOut}`;
+
+    if (hasManualCount && cambioNetoDelDia !== (costIn - costOut)) {
+        if (displayIn > 0) inText += " (Ajuste)";
+        if (displayOut > 0) outText += " (Ajuste)";
+    }
+    
+    const costeMovimientoDia = (costIn + costOut) * COSTE_POR_MOVIMIENTO_UNITARIO;
     const costeAlmacenajeDia = finalStock * COSTE_ALMACENAJE_DIARIO_UNITARIO;
 
-    summaryData.push({
-      date: dateStr,
-      initial: dailyStock,
-      in: dailyIn,
-      out: dailyOut,
-      final: finalStock,
-      costeMovimiento: costeMovimientoDia,
-      costeAlmacenaje: costeAlmacenajeDia,
-    });
-
-    // Acumulamos los totales
+    summaryData.push({ date: dateStr, initial: stockInicialDelDia, in: inText, out: outText, final: finalStock, costeMovimiento: costeMovimientoDia, costeAlmacenaje: costeAlmacenajeDia });
+    
     costeTotalMovimientos += costeMovimientoDia;
     costeTotalAlmacenaje += costeAlmacenajeDia;
-
-    dailyStock = finalStock;
     currentDate.setDate(currentDate.getDate() + 1);
   }
 
   const costeTotalGeneral = costeTotalMovimientos + costeTotalAlmacenaje;
-
-  // --- 3. GENERACIÓN DEL DOCUMENTO WORD (CON COSTES) ---
+  
+  // --- 3. GENERACIÓN DEL DOCUMENTO WORD ---
   try {
     const doc = new docx.Document({
       sections: [{
@@ -122,7 +153,6 @@ async function calculateAndExport() {
                   new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Entradas", bold: true })] })] }),
                   new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Salidas", bold: true })] })] }),
                   new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Final", bold: true })] })] }),
-                  // ¡NUEVAS COLUMNAS!
                   new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Coste Mov.", bold: true })] })] }),
                   new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Coste Alm.", bold: true })] })] }),
                 ],
@@ -131,17 +161,15 @@ async function calculateAndExport() {
                 children: [
                   new docx.TableCell({ children: [new docx.Paragraph(day.date)] }),
                   new docx.TableCell({ children: [new docx.Paragraph(String(day.initial))] }),
-                  new docx.TableCell({ children: [new docx.Paragraph(`+${day.in}`)] }),
-                  new docx.TableCell({ children: [new docx.Paragraph(`-${day.out}`)] }),
+                  new docx.TableCell({ children: [new docx.Paragraph(day.in)] }),
+                  new docx.TableCell({ children: [new docx.Paragraph(day.out)] }),
                   new docx.TableCell({ children: [new docx.Paragraph(String(day.final))] }),
-                  // ¡NUEVOS DATOS!
                   new docx.TableCell({ children: [new docx.Paragraph(`${day.costeMovimiento.toFixed(2)} €`)] }),
                   new docx.TableCell({ children: [new docx.Paragraph(`${day.costeAlmacenaje.toFixed(2)} €`)] }),
                 ],
               })),
             ],
           }),
-          // ¡NUEVA SECCIÓN DE RESUMEN DE COSTES!
           new docx.Paragraph({ text: "" }),
           new docx.Paragraph({ text: "Resumen de Costes del Periodo", heading: docx.HeadingLevel.HEADING_3 }),
           new docx.Paragraph({
@@ -158,14 +186,13 @@ async function calculateAndExport() {
           }),
           new docx.Paragraph({
             children: [
-              new docx.TextRun({ text: "COSTE TOTAL GENERAL DEL PERIODO: ", bold: true, size: 28 }), // 14pt
+              new docx.TextRun({ text: "COSTE TOTAL GENERAL DEL PERIODO: ", bold: true, size: 28 }),
               new docx.TextRun({ text: `${costeTotalGeneral.toFixed(2)} €`, bold: true, size: 28 })
             ],
           }),
         ],
       }],
     });
-
     const blob = await docx.Packer.toBlob(doc);
     saveAs(blob, `Resumen_Costes_Stock_${startDate.value}_a_${endDate.value}.docx`);
   } catch (error) {
@@ -179,7 +206,7 @@ async function calculateAndExport() {
   <div class="space-y-6">
     <h2 class="text-2xl font-bold text-gray-800">Historial y Resumen</h2>
 
-    <!-- Sección de Filtros (INTACTA) -->
+    <!-- Sección de Filtros -->
     <div class="p-4 bg-gray-50 rounded-lg border grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
       <div>
         <label for="start-date" class="block text-sm font-medium text-gray-700">Desde</label>
@@ -194,7 +221,7 @@ async function calculateAndExport() {
       </button>
     </div>
 
-    <!-- SECCIÓN DE HISTORIAL DETALLADO (RESTAURADA) -->
+    <!-- Sección de Historial Detallado -->
     <div>
       <h3 class="text-xl font-semibold text-gray-700 mb-4">Historial de Movimientos Detallado</h3>
       <div v-if="filteredMovements.length > 0" class="space-y-4">

@@ -1,0 +1,1918 @@
+
+================================================================================
+--- Archivo: ./package.json ---
+================================================================================
+
+{
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
+    "docx": "^9.5.1",
+    "file-saver": "^2.0.5",
+    "papaparse": "^5.5.3"
+  }
+}
+
+================================================================================
+--- Archivo: ./inventario-vue/.gitignore ---
+================================================================================
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+.DS_Store
+dist
+dist-ssr
+coverage
+*.local
+
+/cypress/videos/
+/cypress/screenshots/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+*.tsbuildinfo
+
+================================================================================
+--- Archivo: ./inventario-vue/.prettierrc.json ---
+================================================================================
+
+{
+  "$schema": "https://json.schemastore.org/prettierrc",
+  "semi": false,
+  "singleQuote": true,
+  "printWidth": 100
+}
+
+================================================================================
+--- Archivo: ./inventario-vue/README.md ---
+================================================================================
+
+# inventario-vue
+
+This template should help get you started developing with Vue 3 in Vite.
+
+## Recommended IDE Setup
+
+[VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+
+## Customize configuration
+
+See [Vite Configuration Reference](https://vite.dev/config/).
+
+## Project Setup
+
+```sh
+npm install
+```
+
+### Compile and Hot-Reload for Development
+
+```sh
+npm run dev
+```
+
+### Compile and Minify for Production
+
+```sh
+npm run build
+```
+
+### Lint with [ESLint](https://eslint.org/)
+
+```sh
+npm run lint
+```
+
+================================================================================
+--- Archivo: ./inventario-vue/eslint.config.js ---
+================================================================================
+
+import { defineConfig, globalIgnores } from 'eslint/config'
+import globals from 'globals'
+import js from '@eslint/js'
+import pluginVue from 'eslint-plugin-vue'
+import skipFormatting from '@vue/eslint-config-prettier/skip-formatting'
+
+export default defineConfig([
+  {
+    name: 'app/files-to-lint',
+    files: ['**/*.{js,mjs,jsx,vue}'],
+  },
+
+  globalIgnores(['**/dist/**', '**/dist-ssr/**', '**/coverage/**']),
+
+  {
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+      },
+    },
+  },
+
+  js.configs.recommended,
+  ...pluginVue.configs['flat/essential'],
+  skipFormatting,
+])
+
+================================================================================
+--- Archivo: ./inventario-vue/index.html ---
+================================================================================
+
+<!DOCTYPE html>
+<html lang="">
+  <head>
+    <meta charset="UTF-8">
+    <link rel="icon" href="/favicon.ico">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vite App</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
+
+================================================================================
+--- Archivo: ./inventario-vue/jsconfig.json ---
+================================================================================
+
+{
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}
+
+================================================================================
+--- Archivo: ./inventario-vue/package.json ---
+================================================================================
+
+{
+  "name": "inventario-vue",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^20.0.0 || >=22.0.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --fix",
+    "format": "prettier --write src/"
+  },
+  "dependencies": {
+    "@emailjs/browser": "^4.4.1",
+    "@supabase/supabase-js": "^2.33.1",
+    "docx": "^8.5.0",
+    "file-saver": "^2.0.5",
+    "papaparse": "^5.4.1",
+    "vue": "^3.5.18",
+    "vue-toastification": "^2.0.0-rc.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.31.0",
+    "@vitejs/plugin-vue": "^5.0.5",
+    "@vue/eslint-config-prettier": "^9.0.0",
+    "autoprefixer": "^10.4.19",
+    "eslint": "^9.31.0",
+    "eslint-plugin-vue": "^9.26.0",
+    "globals": "^15.4.0",
+    "postcss": "^8.4.38",
+    "prettier": "3.3.2",
+    "tailwindcss": "^3.4.4",
+    "vite": "^5.2.13",
+    "vite-plugin-vue-devtools": "^7.3.1"
+  }
+}
+
+================================================================================
+--- Archivo: ./inventario-vue/postcss.config.js ---
+================================================================================
+
+export default {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+}
+
+================================================================================
+--- Archivo: ./inventario-vue/tailwind.config.js ---
+================================================================================
+
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{vue,js,ts,jsx,tsx}",
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+================================================================================
+--- Archivo: ./inventario-vue/vite.config.js ---
+================================================================================
+
+import { fileURLToPath, URL } from 'node:url'
+import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+
+// https://vitejs.dev/config/
+export default defineConfig({
+  plugins: [vue()],
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url))
+    }
+  }
+})
+================================================================================
+--- Archivo: ./inventario-vue/src/App.vue ---
+================================================================================
+
+<script setup>
+import { ref, computed, watch, onMounted } from 'vue';
+import { useAuth } from './composables/useAuth';
+import { useInventory } from './composables/useInventory';
+import { useConfirm } from './composables/useConfirm';
+
+// Importamos todos los componentes necesarios
+import LoginView from './views/LoginView.vue';
+import TheHeader from './components/TheHeader.vue';
+import TheNavigation from './components/TheNavigation.vue';
+import NewOrderView from './views/NewOrderView.vue';
+import StockView from './views/StockView.vue';
+import IncomingsView from './views/IncomingsView.vue';
+import HistoryView from './views/HistoryView.vue';
+import SettingsView from './views/SettingsView.vue';
+import AppModal from './components/AppModal.vue';
+
+const { user, profile, signOut, isSessionLoading, checkSession } = useAuth();
+const { loadFromServer, fetchPendingIncomings } = useInventory();
+const { isVisible, title, message, onConfirm, onCancel } = useConfirm();
+
+const activeTab = ref(null);
+const views = {
+  form: NewOrderView,
+  stock: StockView,
+  incomings: IncomingsView,
+  settings: SettingsView,
+  history: HistoryView
+};
+
+const availableTabs = computed(() => {
+  const userRole = profile.value?.role;
+  if (userRole === 'admin') return ['form', 'stock', 'incomings', 'settings', 'history'];
+  if (userRole === 'operario') return ['form', 'stock'];
+  return [];
+});
+
+watch(profile, (newProfile, oldProfile) => {
+  if (newProfile && !oldProfile) {
+    loadFromServer();
+     fetchPendingIncomings(); // Pedimos también las entradas pendientes
+    let initialTabs = [];
+    if (newProfile.role === 'admin') {
+      initialTabs = ['form', 'stock', 'incomings', 'settings', 'history'];
+    } else if (newProfile.role === 'operario') {
+      initialTabs = ['form', 'stock'];
+    }
+    
+    if (initialTabs.length > 0) {
+      activeTab.value = initialTabs[0];
+    }
+  }
+});
+
+onMounted(() => {
+  checkSession();
+});
+
+</script>
+
+<template>
+  <div v-if="isSessionLoading" class="flex items-center justify-center min-h-screen bg-gray-100">
+    <p class="text-xl text-gray-500 animate-pulse">Cargando aplicación...</p>
+  </div>
+
+  <div v-else-if="user && profile">
+    <div class="max-w-4xl mx-auto bg-white shadow-lg rounded-xl overflow-hidden md:p-8 p-4">
+      <TheHeader />
+      
+      <TheNavigation 
+        :active-tab="activeTab" 
+        :tabs="availableTabs"
+        @navigate="newTab => activeTab = newTab" 
+      />
+
+      <main>
+        <component v-if="activeTab" :is="views[activeTab]" />
+        
+        <div v-else class="text-center p-8">
+          <p class="text-lg text-red-600">No tienes ninguna sección disponible.</p>
+        </div>
+      </main>
+
+      <div class="text-center mt-8 border-t pt-4">
+        <p class="text-sm text-gray-500 mb-2">
+          Sesión iniciada como: <strong>{{ user.email }}</strong> (Rol: <strong>{{ profile.role }}</strong>)
+        </p>
+        <button @click="signOut" class="text-sm text-indigo-600 hover:underline">Cerrar Sesión</button>
+      </div>
+    </div>
+  </div>
+
+  <LoginView v-else />
+
+  <AppModal
+    v-if="isVisible"
+    :title="title"
+    @close="onCancel"
+    @confirm="onConfirm"
+  >
+    <p class="text-gray-700">{{ message }}</p>
+  </AppModal>
+</template>
+
+<style>
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f3f4f6;
+}
+</style>
+================================================================================
+--- Archivo: ./inventario-vue/src/main.js ---
+================================================================================
+
+import { createApp } from 'vue'
+import Toast from 'vue-toastification'
+import 'vue-toastification/dist/index.css'
+import App from './App.vue'
+import './assets/index.css'
+
+const app = createApp(App)
+app.use(Toast, {
+  position: "top-right",
+  timeout: 4000,
+  closeOnClick: true,
+  pauseOnFocusLoss: true,
+  pauseOnHover: true,
+  draggable: true,
+})
+app.mount('#app')
+================================================================================
+--- Archivo: ./inventario-vue/src/supabase.js ---
+================================================================================
+
+// Ruta: src/supabase.js
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = 'https://wktqxfudyskiffqvzttf.supabase.co' // <-- Pega tu URL aquí
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndrdHF4ZnVkeXNraWZmcXZ6dHRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYyMDIxNjEsImV4cCI6MjA3MTc3ODE2MX0.oZPq8gEKdEYiJuzgikpnSZ89THyB1xrHFNn4va06wn0' // <-- Pega tu clave aquí
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+
+================================================================================
+--- Archivo: ./inventario-vue/src/components/AppModal.vue ---
+================================================================================
+
+<!-- Ruta: src/components/AppModal.vue -->
+<script setup>
+// Definimos las propiedades que este componente puede recibir (como el título)
+defineProps({
+  title: String,
+});
+// Definimos los eventos que este componente puede enviar (cuando se pulsa un botón)
+const emit = defineEmits(['close', 'confirm']);
+</script>
+
+<template>
+  <div class="modal" style="display: flex;">
+    <div class="modal-content text-left">
+      <h3 class="text-2xl font-bold mb-4">{{ title }}</h3>
+      
+      <!-- Esta es una ranura (slot). Aquí se inyectará el contenido que queramos,
+           como el formulario de edición de stock. -->
+      <slot></slot>
+
+      <div class="flex justify-end space-x-4 mt-6">
+        <button @click="emit('close')" class="px-6 py-2 text-sm font-semibold text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300">
+          Cancelar
+        </button>
+        <button @click="emit('confirm')" class="px-6 py-2 text-sm font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700">
+          Guardar Cambios
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+/* Pegamos los estilos del modal aquí para que estén encapsulados y no afecten a otros componentes */
+.modal {
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background-color: rgba(0,0,0,0.4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.modal-content {
+  background-color: #fefefe;
+  padding: 24px;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px; /* Un poco más grande para que quepa bien el formulario */
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+
+</style>
+
+================================================================================
+--- Archivo: ./inventario-vue/src/components/ApprovalModal.vue ---
+================================================================================
+
+<script setup>
+import { ref } from 'vue';
+import { useInventory } from '@/composables/useInventory';
+
+const props = defineProps({
+  entry: Object, // La entrada pendiente que estamos aprobando
+});
+const emit = defineEmits(['close', 'approved']);
+
+const { productsWithSku } = useInventory();
+
+const pallets = ref(0);
+const items = ref([{ sku: '', desc: '', cantidad: 0 }]);
+
+function addRow() {
+  items.value.push({ sku: '', desc: '', cantidad: 0 });
+}
+
+function updateSku(item) {
+  const selectedProduct = Object.entries(productsWithSku.value).find(([desc, data]) => desc === item.desc);
+  if (selectedProduct) {
+    item.sku = selectedProduct[1].sku;
+  }
+}
+
+function submitApproval() {
+  const movementDetails = {
+    pallets: Number(pallets.value),
+    items: items.value.filter(i => i.desc && i.cantidad > 0),
+  };
+  emit('approved', movementDetails);
+}
+</script>
+
+<template>
+  <div class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+    <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-2xl">
+      <h2 class="text-xl font-bold mb-4">Aprobar Entrada y Registrar Stock</h2>
+      
+      <div class="grid grid-cols-2 gap-4">
+        <!-- Columna Izquierda: Texto del Albarán -->
+        <div>
+          <h3 class="font-semibold text-gray-700 mb-2">Texto del Albarán</h3>
+          <pre class="bg-gray-100 p-3 rounded-md text-xs text-gray-700 whitespace-pre-wrap font-mono h-80 overflow-y-auto border">{{ entry.parsed_data.raw_text }}</pre>
+        </div>
+
+        <!-- Columna Derecha: Formulario -->
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Nº de Pallets</label>
+            <input type="number" v-model="pallets" class="mt-1 block w-full p-2 border rounded-md" />
+          </div>
+          
+          <h3 class="font-semibold text-gray-700">Materiales a Registrar</h3>
+          <div v-for="(item, index) in items" :key="index" class="grid grid-cols-3 gap-2 items-center">
+            <select v-model="item.desc" @change="updateSku(item)" class="col-span-2 mt-1 block w-full p-2 border rounded-md">
+              <option disabled value="">Selecciona material</option>
+              <option v-for="(data, desc) in productsWithSku" :key="desc">{{ desc }}</option>
+            </select>
+            <input type="number" v-model="item.cantidad" placeholder="Cant." class="mt-1 block w-full p-2 border rounded-md" />
+          </div>
+          <button @click="addRow" class="text-sm text-blue-600 hover:underline">+ Añadir otra fila</button>
+        </div>
+      </div>
+
+      <div class="mt-6 flex justify-end space-x-4">
+        <button @click="$emit('close')" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">Cancelar</button>
+        <button @click="submitApproval" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700">Confirmar y Registrar</button>
+      </div>
+    </div>
+  </div>
+</template>
+================================================================================
+--- Archivo: ./inventario-vue/src/components/TheHeader.vue ---
+================================================================================
+
+<script setup>
+// Este componente es puramente visual, por lo que no necesita lógica de JavaScript.
+// La etiqueta <script setup> se puede dejar vacía o incluso omitirse.
+</script>
+
+<template>
+  <div class="text-center mb-6">
+    <h1 class="text-3xl font-bold text-gray-800">Inventario y Traslado</h1>
+    <p class="text-gray-500 mt-2">Registra y gestiona tus traslados de inventario de forma sencilla.</p>
+  </div>
+</template>
+
+<style scoped>
+/* No se necesitan estilos específicos para este componente, 
+   ya que utiliza exclusivamente clases de Tailwind CSS. 
+   La etiqueta <style> es opcional. */
+</style>
+================================================================================
+--- Archivo: ./inventario-vue/src/components/TheNavigation.vue ---
+================================================================================
+
+<!-- RUTA: src/components/TheNavigation.vue (VERSIÓN FINAL CON PERMISOS) -->
+<script setup>
+// Ahora acepta una propiedad 'tabs' que es un array con los nombres de las pestañas a mostrar
+defineProps({
+  activeTab: String,
+  tabs: {
+    type: Array,
+    required: true,
+  },
+});
+const emit = defineEmits(['navigate']);
+
+// Un objeto para mapear las claves de las pestañas a su texto visible
+const tabLabels = {
+  form: 'Nuevo Pedido',
+  stock: 'Stock',
+  incomings: 'Entradas',
+  settings: 'Añadir Material',
+  history: 'Ver Historial',
+};
+</script>
+
+<template>
+  <div class="flex justify-center mb-6 space-x-4">
+    <!-- Usamos un v-for para crear solo los botones que están en la lista 'tabs' -->
+    <button 
+      v-for="tabKey in tabs" 
+      :key="tabKey"
+      @click="emit('navigate', tabKey)" 
+      :class="{'bg-indigo-100 text-indigo-700': activeTab === tabKey, 'text-gray-500': activeTab !== tabKey}"
+      class="px-6 py-2 text-sm font-semibold rounded-full focus:outline-none transition-colors duration-200"
+    >
+      {{ tabLabels[tabKey] }}
+    </button>
+  </div>
+</template>
+================================================================================
+--- Archivo: ./inventario-vue/src/assets/index.css ---
+================================================================================
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+================================================================================
+--- Archivo: ./inventario-vue/src/views/HistoryView.vue ---
+================================================================================
+
+<script setup>
+import { ref, computed } from 'vue';
+import { useInventory } from '@/composables/useInventory';
+import { useConfirm } from '@/composables/useConfirm';
+import * as docx from 'docx';
+import { saveAs } from 'file-saver';
+
+const { movements, materialStock, productsWithSku, deleteMovement } = useInventory();
+const { showConfirm } = useConfirm();
+
+const startDate = ref('');
+const endDate = ref('');
+
+const filteredMovements = computed(() => {
+  if (!startDate.value || !endDate.value) {
+    return [...movements.value].reverse();
+  }
+  return [...movements.value]
+    .filter(m => {
+      const moveDate = new Date(m.fechaEntrega);
+      return moveDate >= new Date(startDate.value) && moveDate <= new Date(endDate.value);
+    })
+    .reverse();
+});
+
+function handleDelete(movement) {
+  showConfirm(
+    'Anular Movimiento',
+    `¿Estás seguro de que quieres anular este movimiento?`,
+    () => {
+      deleteMovement(movement.id, movement.tipo, movement.items);
+    }
+  );
+}
+
+async function calculateAndExport() {
+  if (!startDate.value || !endDate.value) {
+    alert('Por favor, selecciona un rango de fechas (Desde y Hasta) para generar el resumen.');
+    return;
+  }
+
+  const COSTE_POR_MOVIMIENTO_UNITARIO = 1.75;
+  const COSTE_ALMACENAJE_DIARIO_UNITARIO = 0.20;
+
+  // --- 1. CÁLCULO DE STOCK INICIAL (MÉTODO POR SKU - EL MÁS ROBUSTO) ---
+  let stockPorSku = {};
+  // Asegurarnos de que productsWithSku.value existe y es un objeto
+  if (productsWithSku.value && typeof productsWithSku.value === 'object') {
+    Object.values(productsWithSku.value).forEach(p => {
+      stockPorSku[p.sku] = 0;
+    });
+  }
+
+  const dayBeforeStartDate = new Date(startDate.value);
+  dayBeforeStartDate.setDate(dayBeforeStartDate.getDate() - 1);
+
+  // Ordenamos TODOS los movimientos por fecha para un cálculo cronológico preciso.
+  const historicalMovements = [...movements.value].sort((a, b) => {
+    const dateA = new Date(a.created_at || a.fechaEntrega);
+    const dateB = new Date(b.created_at || b.fechaEntrega);
+    return dateA - dateB;
+  });
+
+  // Calculamos el stock por SKU hasta el día anterior al inicio del rango.
+  historicalMovements
+    .filter(m => new Date(m.fechaEntrega) <= dayBeforeStartDate)
+    .forEach(mov => {
+      mov.items.forEach(item => {
+        const cantidad = Number(item.cantidad) || 0;
+        if (stockPorSku[item.sku] === undefined) stockPorSku[item.sku] = 0;
+
+        if (mov.tipo === 'Entrada') {
+          stockPorSku[item.sku] += cantidad;
+        } else if (mov.tipo === 'Salida') {
+          stockPorSku[item.sku] -= cantidad;
+        } else if (mov.tipo === 'Recuento Manual' || mov.tipo === 'Ajuste') {
+          // Un recuento establece el valor absoluto para ESE item.
+          stockPorSku[item.sku] = cantidad;
+        }
+      });
+    });
+
+  // --- 2. CÁLCULO DIARIO (ITERANDO DENTRO DEL RANGO) ---
+  const summaryData = [];
+  let currentDate = new Date(startDate.value);
+  const rangeEndDate = new Date(endDate.value);
+  let costeTotalMovimientos = 0;
+  let costeTotalAlmacenaje = 0;
+
+  while (currentDate <= rangeEndDate) {
+    const dateStr = currentDate.toISOString().slice(0, 10);
+    let dailyIn = 0;
+    let dailyOut = 0;
+    
+    // El stock inicial del día es la suma del stock por SKU del día anterior.
+    let stockInicialDelDia = Object.values(stockPorSku).reduce((sum, qty) => sum + qty, 0);
+
+    const movementsForDay = historicalMovements
+      .filter(m => m.fechaEntrega === dateStr);
+
+    // Aplicamos los movimientos del día, SKU por SKU.
+    for (const mov of movementsForDay) {
+        mov.items.forEach(item => {
+            const cantidad = Number(item.cantidad) || 0;
+            if (stockPorSku[item.sku] === undefined) stockPorSku[item.sku] = 0;
+            
+            const stockAnteriorItem = stockPorSku[item.sku];
+
+            if (mov.tipo === 'Entrada') {
+                dailyIn += cantidad;
+                stockPorSku[item.sku] += cantidad;
+            } else if (mov.tipo === 'Salida') {
+                dailyOut += cantidad;
+                stockPorSku[item.sku] -= cantidad;
+            } else if (mov.tipo === 'Recuento Manual' || mov.tipo === 'Ajuste') {
+                const diferencia = cantidad - stockAnteriorItem;
+                if (diferencia > 0) {
+                    dailyIn += diferencia; // Lo contamos como una "entrada" neta
+                } else {
+                    dailyOut += Math.abs(diferencia); // Lo contamos como una "salida" neta
+                }
+                // Y actualizamos el stock del item a su nuevo valor absoluto.
+                stockPorSku[item.sku] = cantidad;
+            }
+        });
+    }
+
+    // El stock final es la suma del nuevo estado del stock por SKU.
+    const finalStock = Object.values(stockPorSku).reduce((sum, qty) => sum + qty, 0);
+    const costeMovimientoDia = (dailyIn + dailyOut) * COSTE_POR_MOVIMIENTO_UNITARIO;
+    const costeAlmacenajeDia = finalStock * COSTE_ALMACENAJE_DIARIO_UNITARIO;
+
+    summaryData.push({ date: dateStr, initial: stockInicialDelDia, in: dailyIn, out: dailyOut, final: finalStock, costeMovimiento: costeMovimientoDia, costeAlmacenaje: costeAlmacenajeDia });
+    costeTotalMovimientos += costeMovimientoDia;
+    costeTotalAlmacenaje += costeAlmacenajeDia;
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  const costeTotalGeneral = costeTotalMovimientos + costeTotalAlmacenaje;
+  
+  // --- 3. GENERACIÓN DEL DOCUMENTO (sin cambios en esta parte) ---
+  try {
+    const doc = new docx.Document({
+      sections: [{
+        children: [
+          new docx.Paragraph({ text: `Resumen Diario de Stock y Costes`, heading: docx.HeadingLevel.TITLE }),
+          new docx.Paragraph({ text: `Periodo: ${startDate.value} a ${endDate.value}`, heading: docx.HeadingLevel.HEADING_2 }),
+          new docx.Paragraph({ text: "" }),
+          new docx.Table({
+            width: { size: 100, type: docx.WidthType.PERCENTAGE },
+            rows: [
+              new docx.TableRow({
+                children: [
+                  new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Fecha", bold: true })] })] }),
+                  new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Inicial", bold: true })] })] }),
+                  new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Entradas", bold: true })] })] }),
+                  new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Salidas", bold: true })] })] }),
+                  new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Final", bold: true })] })] }),
+                  new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Coste Mov.", bold: true })] })] }),
+                  new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Coste Alm.", bold: true })] })] }),
+                ],
+              }),
+              ...summaryData.map(day => new docx.TableRow({
+                children: [
+                  new docx.TableCell({ children: [new docx.Paragraph(day.date)] }),
+                  new docx.TableCell({ children: [new docx.Paragraph(String(day.initial))] }),
+                  new docx.TableCell({ children: [new docx.Paragraph(`+${day.in}`)] }),
+                  new docx.TableCell({ children: [new docx.Paragraph(`-${day.out}`)] }),
+                  new docx.TableCell({ children: [new docx.Paragraph(String(day.final))] }),
+                  new docx.TableCell({ children: [new docx.Paragraph(`${day.costeMovimiento.toFixed(2)} €`)] }),
+                  new docx.TableCell({ children: [new docx.Paragraph(`${day.costeAlmacenaje.toFixed(2)} €`)] }),
+                ],
+              })),
+            ],
+          }),
+          new docx.Paragraph({ text: "" }),
+          new docx.Paragraph({ text: "Resumen de Costes del Periodo", heading: docx.HeadingLevel.HEADING_3 }),
+          new docx.Paragraph({
+            children: [
+              new docx.TextRun({ text: "Coste Total por Movimientos (Entradas y Salidas): ", bold: true }),
+              new docx.TextRun(`${costeTotalMovimientos.toFixed(2)} €`)
+            ],
+          }),
+          new docx.Paragraph({
+            children: [
+              new docx.TextRun({ text: "Coste Total por Almacenaje Diario: ", bold: true }),
+              new docx.TextRun(`${costeTotalAlmacenaje.toFixed(2)} €`)
+            ],
+          }),
+          new docx.Paragraph({
+            children: [
+              new docx.TextRun({ text: "COSTE TOTAL GENERAL DEL PERIODO: ", bold: true, size: 28 }),
+              new docx.TextRun({ text: `${costeTotalGeneral.toFixed(2)} €`, bold: true, size: 28 })
+            ],
+          }),
+        ],
+      }],
+    });
+    const blob = await docx.Packer.toBlob(doc);
+    saveAs(blob, `Resumen_Costes_Stock_${startDate.value}_a_${endDate.value}.docx`);
+  } catch (error) {
+    console.error("Error al generar el documento:", error);
+    alert("Ocurrió un error al generar el documento. Revisa la consola para más detalles.");
+  }
+}
+</script>
+
+<template>
+  <div class="space-y-6">
+    <h2 class="text-2xl font-bold text-gray-800">Historial y Resumen</h2>
+
+    <!-- Sección de Filtros -->
+    <div class="p-4 bg-gray-50 rounded-lg border grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+      <div>
+        <label for="start-date" class="block text-sm font-medium text-gray-700">Desde</label>
+        <input type="date" id="start-date" v-model="startDate" class="mt-1 block w-full p-2 border rounded-md">
+      </div>
+      <div>
+        <label for="end-date" class="block text-sm font-medium text-gray-700">Hasta</label>
+        <input type="date" id="end-date" v-model="endDate" class="mt-1 block w-full p-2 border rounded-md">
+      </div>
+      <button @click="calculateAndExport" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 w-full">
+        Calcular y Exportar
+      </button>
+    </div>
+
+    <!-- Sección de Historial Detallado -->
+    <div>
+      <h3 class="text-xl font-semibold text-gray-700 mb-4">Historial de Movimientos Detallado</h3>
+      <div v-if="filteredMovements.length > 0" class="space-y-4">
+        <div v-for="movement in filteredMovements" :key="movement.id" class="p-4 border rounded-lg bg-white shadow-sm relative">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="font-bold">Fecha: <span class="font-normal">{{ movement.fechaEntrega }}</span></p>
+              <p class="font-bold">Movimiento: 
+                <span :class="movement.tipo === 'Entrada' ? 'text-green-600' : 'text-red-600'">{{ movement.tipo }}</span>
+              </p>
+              <p class="font-bold">Total de Pallets: <span class="font-normal">{{ movement.pallets }}</span></p>
+              <div class="mt-2">
+                <p class="font-bold">Artículos:</p>
+                <ul class="list-disc list-inside text-sm text-gray-600">
+                  <li v-for="(item, index) in movement.items" :key="index">
+                    {{ item.cantidad }} x {{ item.desc }} (SKU: {{ item.sku }})
+                  </li>
+                </ul>
+              </div>
+              <p v-if="movement.comentarios" class="mt-2 font-bold">Comentarios: <span class="font-normal italic">{{ movement.comentarios }}</span></p>
+            </div>
+            <button @click="handleDelete(movement)" class="absolute top-4 right-4 bg-red-100 text-red-700 text-xs font-bold py-1 px-3 rounded-full hover:bg-red-200">
+              Anular
+            </button>
+          </div>
+        </div>
+      </div>
+      <div v-else class="p-4 text-center bg-gray-50 rounded-lg">
+        <p class="text-gray-500">No se encontraron movimientos para el rango de fechas seleccionado.</p>
+      </div>
+    </div>
+  </div>
+</template>
+================================================================================
+--- Archivo: ./inventario-vue/src/views/IncomingsView.vue ---
+================================================================================
+
+<script setup>
+import { ref, computed } from 'vue';
+import { useInventory } from '@/composables/useInventory';
+import { useConfirm } from '@/composables/useConfirm';
+import ApprovalModal from '@/components/ApprovalModal.vue';
+
+const { 
+  productsWithSku,
+  pendingIncomings, 
+  approvePendingIncoming,
+  addMovement
+} = useInventory();
+const { showConfirm } = useConfirm();
+
+// --- ESTADO PARA LA SECCIÓN DE REVISIÓN ---
+const isModalVisible = ref(false);
+const selectedEntry = ref(null);
+
+// --- ESTADO PARA EL FORMULARIO DE ENTRADA MANUAL ---
+const manualFechaEntrada = ref(new Date().toISOString().slice(0, 10));
+const manualItems = ref([{ sku: '', desc: '', cantidad: null }]);
+
+// --- LÓGICA PARA EL FORMULARIO MANUAL ---
+function addManualRow() {
+  manualItems.value.push({ sku: '', desc: '', cantidad: null });
+}
+
+function updateManualSku(item) {
+  const selectedProduct = Object.entries(productsWithSku.value).find(([desc, data]) => desc === item.desc);
+  if (selectedProduct) {
+    item.sku = selectedProduct[1].sku;
+  }
+}
+
+function resetManualForm() {
+  manualFechaEntrada.value = new Date().toISOString().slice(0, 10);
+  manualItems.value = [{ sku: '', desc: '', cantidad: null }];
+}
+
+function handleManualSubmit() {
+  const validItems = manualItems.value
+    .filter(i => i.desc && i.cantidad > 0)
+    .map(i => ({...i, cantidad: Number(i.cantidad)}));
+
+  if (validItems.length === 0) {
+    alert('Debes añadir al menos un artículo con cantidad mayor que cero.');
+    return;
+  }
+
+  const totalQuantity = validItems.reduce((sum, item) => sum + item.cantidad, 0);
+
+  const newMovement = {
+    fechaPedido: manualFechaEntrada.value,
+    fechaEntrega: manualFechaEntrada.value,
+    comentarios: 'Entrada manual registrada desde la aplicación.',
+    tipo: 'Entrada',
+    items: validItems,
+    pallets: totalQuantity
+  };
+
+  showConfirm(
+    'Registrar Entrada Manual',
+    '¿Estás seguro de que quieres registrar esta entrada? La acción actualizará el stock inmediatamente.',
+    () => {
+      addMovement(newMovement);
+      resetManualForm();
+    }
+  );
+}
+
+// --- LÓGICA PARA LA SECCIÓN DE REVISIÓN ---
+function handleApproveClick(entry) {
+  selectedEntry.value = entry;
+  isModalVisible.value = true;
+}
+
+function handleModalClose() {
+  isModalVisible.value = false;
+  selectedEntry.value = null;
+}
+
+function handleFinalApproval(movementDetails) {
+  showConfirm(
+    'Confirmar Registro de Stock',
+    '¿Estás seguro de que quieres registrar esta entrada? La acción actualizará el stock y no se puede deshacer.',
+    () => {
+      approvePendingIncoming(selectedEntry.value, movementDetails);
+      handleModalClose();
+    }
+  );
+}
+</script>
+
+<template>
+  <div class="space-y-8">
+
+    <!-- SECCIÓN DE ENTRADA MANUAL -->
+    <div>
+      <h2 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">Registrar Nueva Entrada Manual</h2>
+      <div class="p-4 bg-gray-50 rounded-lg border space-y-4">
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Fecha de Entrada</label>
+          <input type="date" v-model="manualFechaEntrada" class="mt-1 block w-full md:w-1/3 p-2 border rounded-md" />
+        </div>
+        
+        <h3 class="font-semibold text-gray-700">Artículos</h3>
+        <div v-for="(item, index) in manualItems" :key="index" class="grid grid-cols-1 md:grid-cols-5 gap-2 items-center">
+          <select v-model="item.desc" @change="updateManualSku(item)" class="md:col-span-3 mt-1 block w-full p-2 border rounded-md">
+            <option disabled value="">Selecciona un material</option>
+            <option v-for="(data, desc) in productsWithSku" :key="desc">{{ desc }}</option>
+          </select>
+          <input type="text" :value="item.sku" readonly placeholder="SKU" class="mt-1 block w-full p-2 border rounded-md bg-gray-100 text-gray-500" />
+          <input type="number" v-model="item.cantidad" placeholder="Cantidad" class="mt-1 block w-full p-2 border rounded-md" />
+        </div>
+        <button @click="addManualRow" class="text-sm text-blue-600 hover:underline">+ Añadir otro artículo</button>
+
+        <div class="text-right">
+          <button @click="handleManualSubmit" class="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700">
+            Registrar Entrada
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- SECCIÓN DE ENTRADAS PENDIENTES DE REVISIÓN (RESTAURADA) -->
+    <div>
+      <h2 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">Entradas Pendientes de Revisión (desde Albarán)</h2>
+      
+      <div v-if="pendingIncomings.length > 0" class="space-y-4">
+        <div v-for="entry in pendingIncomings" :key="entry.id" class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="font-semibold">Albarán recibido el: <span class="font-normal">{{ new Date(entry.created_at).toLocaleString() }}</span></p>
+              <a :href="entry.file_url" target="_blank" class="text-sm text-blue-600 hover:underline">Ver Albarán Original en Drive</a>
+            </div>
+            <button @click="handleApproveClick(entry)" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700">
+              Revisar y Aprobar
+            </button>
+          </div>
+        </div>
+      </div>
+      <div v-else>
+        <p class="text-gray-500">No hay nuevas entradas pendientes de revisión.</p>
+      </div>
+    </div>
+
+    <!-- El modal de aprobación -->
+    <ApprovalModal 
+      v-if="isModalVisible" 
+      :entry="selectedEntry"
+      @close="handleModalClose"
+      @approved="handleFinalApproval"
+    />
+
+  </div>
+</template>
+================================================================================
+--- Archivo: ./inventario-vue/src/views/LoginView.vue ---
+================================================================================
+
+<script setup>
+import { ref } from 'vue';
+import { useAuth } from '../composables/useAuth';
+
+// Obtenemos SOLO la función signIn
+const { signIn } = useAuth();
+
+const email = ref('');
+const password = ref('');
+
+// La función de login ahora es súper simple:
+// solo llama a signIn y no se preocupa del estado de carga.
+const handleLogin = () => {
+  signIn(email.value, password.value);
+};
+</script>
+
+<template>
+  <div class="min-h-screen flex items-center justify-center bg-gray-100">
+    <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-sm">
+      <h2 class="text-2xl font-bold text-center mb-1">Iniciar Sesión</h2>
+      <p class="text-center text-gray-600 mb-6">Accede a tu cuenta de inventario</p>
+      
+      <form @submit.prevent="handleLogin">
+        <div class="mb-4">
+          <label for="email" class="block text-sm font-medium text-gray-700">Correo Electrónico</label>
+          <input 
+            type="email" 
+            id="email" 
+            v-model="email"
+            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            required
+          />
+        </div>
+        
+        <div class="mb-6">
+          <label for="password" class="block text-sm font-medium text-gray-700">Contraseña</label>
+          <input 
+            type="password" 
+            id="password" 
+            v-model="password"
+            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            required
+          />
+        </div>
+        
+        <!-- El botón ahora no necesita cambiar su texto. App.vue mostrará "Cargando..." -->
+        <button 
+          type="submit" 
+          class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+        >
+          Acceder
+        </button>
+      </form>
+    </div>
+  </div>
+</template>
+================================================================================
+--- Archivo: ./inventario-vue/src/views/NewOrderView.vue ---
+================================================================================
+
+<!-- RUTA: src/views/NewOrderView.vue (VERSIÓN FINAL COMPLETA) -->
+<script setup>
+import { ref, computed } from 'vue';
+import { useInventory } from '../composables/useInventory';
+import { useToasts } from '../composables/useToasts';
+import { useConfirm } from '../composables/useConfirm'; // Importamos el modal de confirmación
+import emailjs from '@emailjs/browser';
+
+const { productsWithSku, materialStock, addMovement } = useInventory();
+const { showSuccess, showError } = useToasts();
+const { show: showConfirm } = useConfirm(); // Preparamos la función del modal
+
+const fechaPedido = ref(new Date().toISOString().slice(0, 10));
+const fechaEntrega = ref('');
+const comentarios = ref('');
+const items = ref([{ id: 0, desc: '', sku: '', cantidad: 1 }]);
+const isSending = ref(false);
+
+const productNames = computed(() => Object.keys(productsWithSku.value));
+
+function addItem() {
+  const newId = items.value.length > 0 ? Math.max(...items.value.map(i => i.id)) + 1 : 0;
+  items.value.push({ id: newId, desc: '', sku: '', cantidad: 1 });
+}
+function removeItem(index) {
+  if (items.value.length > 1) {
+    items.value.splice(index, 1);
+  } else {
+    showError('No puedes eliminar el último artículo.');
+  }
+}
+function updateSku(item) {
+  item.sku = productsWithSku.value[item.desc]?.sku || '';
+}
+
+async function submitOrder() {
+  if (!fechaEntrega.value) { return showError('Falta la fecha de entrega.'); }
+  const validItems = items.value.filter(item => item.desc && item.cantidad > 0);
+  if (validItems.length === 0) { return showError('Añade al menos un artículo válido.'); }
+  for (const item of validItems) {
+    if ((materialStock.value[item.sku] || 0) < item.cantidad) {
+      return showError(`Stock insuficiente para ${item.desc}.`);
+    }
+  }
+
+  isSending.value = true;
+  const totalPallets = validItems.reduce((sum, item) => sum + Number(item.cantidad), 0);
+  const itemsHtml = `<ul>` + validItems.map(item => `<li>${item.cantidad} x ${item.desc} (SKU: ${item.sku})</li>`).join('') + `</ul>`;
+  const templateParams = {
+    fecha_pedido: fechaPedido.value,
+    fecha_entrega: fechaEntrega.value,
+    items_html: itemsHtml,
+    total_pallets: totalPallets,
+    comentarios: comentarios.value || 'Sin comentarios.',
+  };
+
+  try {
+    await emailjs.send(
+      'service_est8vb5', 
+      'template_akvry63', // <-- RECUERDA RELLENAR ESTAS CLAVES
+      templateParams, 
+      'CfY2CEwXzbg4TVoFn'
+    );
+    
+    await addMovement({
+      fechaPedido: fechaPedido.value,
+      fechaEntrega: fechaEntrega.value,
+      pallets: totalPallets,
+      comentarios: comentarios.value,
+      items: JSON.parse(JSON.stringify(validItems)),
+      tipo: 'Salida',
+    });
+
+    showSuccess('¡Pedido registrado y correo enviado con éxito!');
+    fechaEntrega.value = '';
+    comentarios.value = '';
+    items.value = [{ id: 0, desc: '', sku: '', cantidad: 1 }];
+  } catch (error) {
+    console.error('Error de EmailJS:', error);
+    showError('Hubo un error al enviar el correo. El pedido no se ha registrado.');
+  } finally {
+    isSending.value = false;
+  }
+}
+
+// FUNCIÓN "SIN PEDIDO" ACTUALIZADA CON EL MODAL
+async function sendNoOrderNotification() {
+  const confirmed = await showConfirm(
+    'Confirmar Notificación', // Título del modal
+    `¿Estás seguro de que quieres notificar que no hay pedido de traslado para el día de hoy (${fechaPedido.value})?` // Mensaje
+  );
+  
+  if (confirmed) {
+    isSending.value = true;
+    const templateParams = {
+      fecha_actual: fechaPedido.value,
+    };
+    try {
+      await emailjs.send(
+        'service_est8vb5', 
+        'template_z1qinpb', // <-- RECUERDA RELLENAR ESTAS CLAVES
+        templateParams, 
+        'CfY2CEwXzbg4TVoFn'
+      );
+      showSuccess(`Notificación de "Sin Pedido" enviada con éxito.`);
+    } catch (error) {
+      console.error('Error de EmailJS:', error);
+      showError('Hubo un error al enviar la notificación.');
+    } finally {
+      isSending.value = false;
+    }
+  }
+}
+</script>
+
+<template>
+  <div class="space-y-6">
+      <h2 class="text-2xl font-bold text-gray-800">Salida de Inventario</h2>
+      
+      <!-- Formulario -->
+      <div class="grid md:grid-cols-2 grid-cols-1 gap-6 mb-6">
+        <div><label class="block text-sm font-medium text-gray-700">Fecha del Pedido</label><input type="date" v-model="fechaPedido" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 bg-gray-50 border"></div>
+        <div><label class="block text-sm font-medium text-gray-700">Fecha de Entrega Deseada</label><input type="date" v-model="fechaEntrega" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 bg-gray-50 border"></div>
+        <div class="md:col-span-2"><label class="block text-sm font-medium text-gray-700">Comentarios</label><textarea rows="3" v-model="comentarios" placeholder="Añade notas o instrucciones especiales aquí..." class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 bg-gray-50 border"></textarea></div>
+      </div>
+      
+      <!-- Items -->
+      <div class="space-y-4 mb-6">
+        <h3 class="text-lg font-semibold text-gray-800">Artículos del Pedido</h3>
+        <datalist id="products"><option v-for="name in productNames" :key="name" :value="name"></option></datalist>
+        <div v-for="(item, index) in items" :key="item.id" class="item-entry grid md:grid-cols-4 grid-cols-1 gap-4 items-center p-4 bg-gray-50 rounded-lg border">
+          <div><label class="block text-xs font-medium text-gray-500">Descripción del Artículo</label><input type="text" list="products" v-model="item.desc" @input="updateSku(item)" placeholder="Escribe para buscar..." class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 border"></div>
+          <div><label class="block text-xs font-medium text-gray-500">SKU / Código</label><input type="text" v-model="item.sku" readonly placeholder="Código" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 border"></div>
+          <div><label class="block text-xs font-medium text-gray-500">Cantidad</label><input type="number" v-model="item.cantidad" min="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 border"></div>
+          <div class="flex justify-end"><button @click="removeItem(index)" class="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-md hover:bg-red-600">Eliminar</button></div>
+        </div>
+      </div>
+      
+      <div class="flex justify-between items-center mb-6"><button @click="addItem" class="px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-100 rounded-md hover:bg-indigo-200">+ Añadir Artículo</button></div>
+      
+      <!-- SECCIÓN DE BOTONES DE ACCIÓN -->
+      <div class="text-center space-y-4 md:space-y-0 md:space-x-4 md:flex md:justify-center">
+        <button @click="submitOrder" :disabled="isSending" class="w-full md:w-auto px-8 py-3 bg-indigo-600 text-white font-semibold rounded-full shadow-lg hover:bg-indigo-700 disabled:bg-indigo-400">
+          <span v-if="isSending">Enviando...</span>
+          <span v-else>Enviar Pedido</span>
+        </button>
+        <button @click="sendNoOrderNotification" :disabled="isSending" class="w-full md:w-auto px-8 py-3 bg-gray-500 text-white font-semibold rounded-full shadow-lg hover:bg-gray-600 disabled:bg-gray-400">
+          <span v-if="isSending">Enviando...</span>
+          <span v-else>Sin Pedido de Traslado</span>
+        </button>
+      </div>
+  </div>
+</template>
+================================================================================
+--- Archivo: ./inventario-vue/src/views/SettingsView.vue ---
+================================================================================
+
+<!-- Ruta: src/views/SettingsView.vue -->
+<script setup>
+import { ref } from 'vue';
+import { useInventory } from '../composables/useInventory';
+import { useToasts } from '../composables/useToasts'; // <-- 1. IMPORTAMOS EL AYUDANTE
+
+// 2. PREPARAMOS LAS FUNCIONES DE NOTIFICACIÓN PARA USARLAS
+const { showSuccess, showError } = useToasts(); 
+const { addProduct, productsWithSku, deleteProduct } = useInventory();
+
+const newProduct = ref({
+  desc: '',
+  sku: '',
+  initialStock: 0
+});
+
+function handleAddProduct() {
+  if (!newProduct.value.desc || !newProduct.value.sku) {
+    // 3. REEMPLAZAMOS EL ALERT DE ERROR
+    showError('La descripción y el SKU son obligatorios.');
+    return;
+  }
+  
+  // La función addProduct ya tiene su propio alert, vamos a cambiarlo también en useInventory.js
+  // Por ahora, vamos a modificar la llamada para que muestre el toast desde aquí.
+  // (En un paso posterior, moveremos el toast dentro de la propia función addProduct)
+  addProduct(newProduct.value); 
+  
+  newProduct.value = { desc: '', sku: '', initialStock: 0 };
+}
+
+function handleDeleteProduct(productDesc) {
+  // El 'confirm' lo cambiaremos en la Parte B. Por ahora lo dejamos.
+  if (confirm(`¿Estás seguro de que quieres borrar el material "${productDesc}"? Esta acción no se puede deshacer.`)) {
+    deleteProduct(productDesc);
+  }
+}
+</script>
+
+<template>
+  <div class="space-y-8">
+    <h2 class="text-2xl font-bold text-gray-800">Configuración de Productos</h2>
+
+    <!-- Formulario para añadir nuevo producto -->
+    <div class="p-6 bg-gray-50 rounded-lg border border-gray-200 shadow-sm">
+      <h3 class="text-xl font-semibold text-gray-800 mb-4">Añadir Nuevo Material</h3>
+      <div class="grid md:grid-cols-2 grid-cols-1 gap-4">
+        <div>
+          <label for="productDesc" class="block text-sm font-medium text-gray-700">Descripción del Material</label>
+          <input type="text" id="productDesc" v-model="newProduct.desc" placeholder="Ej: CAJA PLAST NUEVA" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 border">
+        </div>
+        <div>
+          <label for="productSku" class="block text-sm font-medium text-gray-700">SKU / Código</label>
+          <input type="text" id="productSku" v-model="newProduct.sku" placeholder="Ej: CAJANUEVA01" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 border">
+        </div>
+        <div class="md:col-span-2">
+          <label for="initialStock" class="block text-sm font-medium text-gray-700">Stock Inicial</label>
+          <input type="number" id="initialStock" v-model="newProduct.initialStock" min="0" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 border">
+        </div>
+      </div>
+      <div class="flex justify-end mt-6">
+        <button @click="handleAddProduct" class="px-6 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700">
+          Guardar Material
+        </button>
+      </div>
+    </div>
+
+    <!-- Lista de productos actuales con el botón de borrado -->
+    <div class="mt-8">
+      <h3 class="text-xl font-semibold text-gray-800 mb-4">Materiales Actuales</h3>
+      <div v-if="Object.keys(productsWithSku).length > 0" class="space-y-2">
+        <div 
+          v-for="(product, desc) in productsWithSku" 
+          :key="product.sku"
+          class="flex items-center justify-between p-3 bg-white border rounded-md shadow-sm"
+        >
+          <div>
+            <p class="font-medium text-gray-800">{{ desc }}</p>
+            <p class="text-xs text-gray-500">SKU: {{ product.sku }}</p>
+          </div>
+          <button 
+            @click="handleDeleteProduct(desc)"
+            class="px-3 py-1 text-xs font-medium text-red-700 bg-red-100 rounded-md hover:bg-red-200"
+            title="Borrar este material"
+          >
+            Borrar
+          </button>
+        </div>
+      </div>
+      <p v-else class="text-gray-500">No hay materiales definidos.</p>
+    </div>
+  </div>
+</template>
+================================================================================
+--- Archivo: ./inventario-vue/src/views/StockView.vue ---
+================================================================================
+
+<script setup>
+import { ref, computed, watch } from 'vue';
+import { useInventory } from '@/composables/useInventory';
+import { useConfirm } from '@/composables/useConfirm';
+import { useAuth } from '@/composables/useAuth';
+
+const { 
+  materialStock, 
+  productsWithSku, 
+  recordManualInventoryCount 
+} = useInventory();
+const { showConfirm } = useConfirm();
+const { profile } = useAuth();
+
+// --- LÓGICA PARA EL MODAL ---
+const isModalVisible = ref(false);
+const editedStock = ref({});
+const adjustmentReason = ref('');
+
+// Mapeo SKU -> Descripción para la UI
+const skuToDesc = computed(() => {
+  const map = {};
+  if (productsWithSku.value) {
+    for (const desc in productsWithSku.value) {
+      const sku = productsWithSku.value[desc].sku;
+      map[sku] = desc;
+    }
+  }
+  return map;
+});
+
+// Función para abrir el modal de ajuste
+function openAdjustmentModal() {
+  // Al abrir, copiamos el stock actual al estado de edición
+  const currentStockValues = {};
+  for (const sku in materialStock.value) {
+    currentStockValues[sku] = Number(materialStock.value[sku] || 0);
+  }
+  editedStock.value = currentStockValues;
+  adjustmentReason.value = ''; // Limpiamos el motivo
+  isModalVisible.value = true;
+}
+
+// Función para guardar los cambios desde el modal
+function handleSaveStock() {
+  if (!adjustmentReason.value.trim()) {
+    alert('El motivo del ajuste es obligatorio.');
+    return;
+  }
+
+  showConfirm(
+    'Confirmar Ajuste de Inventario',
+    '¿Estás seguro de que quieres guardar este recuento? La acción se registrará en el historial y no se puede deshacer.',
+    () => {
+      recordManualInventoryCount(editedStock.value, adjustmentReason.value);
+      isModalVisible.value = false;
+    }
+  );
+}
+</script>
+
+<template>
+  <div class="space-y-6">
+    <div class="flex justify-between items-center">
+      <h2 class="text-2xl font-bold text-gray-800">Stock Actual por Material</h2>
+      <!-- BOTÓN PARA ABRIR EL MODAL (SOLO PARA ADMIN) -->
+      <button 
+        v-if="profile && profile.role === 'admin'"
+        @click="openAdjustmentModal" 
+        class="bg-orange-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-orange-700"
+      >
+        Registrar Ajuste de Inventario
+      </button>
+    </div>
+
+    <!-- TABLA DE STOCK DE SOLO LECTURA -->
+    <div class="overflow-x-auto">
+      <table class="min-w-full bg-white border">
+        <thead class="bg-gray-100">
+          <tr>
+            <th class="text-left py-3 px-4 font-semibold text-sm">Material</th>
+            <th class="text-left py-3 px-4 font-semibold text-sm">SKU</th>
+            <th class="text-left py-3 px-4 font-semibold text-sm">Stock</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Usamos un computed para asegurarnos de que los datos existen antes de iterar -->
+          <tr v-for="(desc, sku) in skuToDesc" :key="sku" class="border-t">
+            <td class="py-3 px-4">{{ desc }}</td>
+            <td class="py-3 px-4 text-gray-600">{{ sku }}</td>
+            <!-- La cantidad es ahora un texto simple, no un campo de entrada -->
+            <td class="py-3 px-4 font-medium">{{ materialStock[sku] || 0 }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- MODAL PARA REGISTRAR AJUSTE -->
+    <div v-if="isModalVisible" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+      <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg">
+        <h3 class="text-xl font-bold mb-4">Registrar Ajuste de Inventario</h3>
+        <div class="p-3 bg-yellow-50 border border-yellow-200 text-sm text-yellow-800 rounded-md mb-4">
+          <strong>Atención:</strong> Introduce el stock **"real"** que has contado. El sistema creará un movimiento de ajuste para corregir la diferencia. Esta acción quedará registrada en el historial.
+        </div>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Motivo del Ajuste (Obligatorio)</label>
+            <input type="text" v-model="adjustmentReason" class="mt-1 block w-full p-2 border rounded-md">
+          </div>
+          <h4 class="font-semibold">Cantidades Reales Contadas:</h4>
+          <div class="space-y-2 max-h-60 overflow-y-auto pr-2">
+            <div v-for="(desc, sku) in skuToDesc" :key="sku" class="grid grid-cols-2 items-center gap-4">
+              <label :for="sku" class="text-sm">{{ desc }}</label>
+              <input :id="sku" type="number" v-model.number="editedStock[sku]" class="p-2 border rounded-md">
+            </div>
+          </div>
+        </div>
+        <div class="mt-6 flex justify-end space-x-4">
+          <button @click="isModalVisible = false" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">Cancelar</button>
+          <button @click="handleSaveStock" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700">Guardar Cambios</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+================================================================================
+--- Archivo: ./inventario-vue/src/composables/useAuth.js ---
+================================================================================
+
+// Ruta: src/composables/useAuth.js (VERSIÓN FINAL CORREGIDA)
+import { ref } from 'vue';
+import { supabase } from '../supabase';
+import { useToasts } from './useToasts';
+
+// Estado global reactivo
+const user = ref(null);
+const profile = ref(null);
+const isSessionLoading = ref(true); // Siempre empieza en 'true' al cargar la web
+
+export function useAuth() {
+  const { showError, showSuccess } = useToasts();
+
+  /**
+   * Inicia sesión. Controla el estado de carga global.
+   */
+  const signIn = async (email, password) => {
+    isSessionLoading.value = true;
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        showError(error.message);
+        // IMPORTANTE: Si hay error, también tenemos que salir del estado de carga
+        isSessionLoading.value = false; 
+        return;
+      }
+      user.value = data.user;
+      await fetchUserProfile(data.user.id);
+      showSuccess('¡Bienvenido!');
+    } catch (e) {
+      showError('Ocurrió un error inesperado al iniciar sesión.');
+    } finally {
+      // Al final del proceso de login, SIEMPRE quitamos el estado de carga
+      isSessionLoading.value = false;
+    }
+  };
+
+  /**
+   * Cierra la sesión.
+   */
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    user.value = null;
+    profile.value = null;
+  };
+
+  /**
+   * Obtiene los datos del perfil del usuario (rol, nombre, etc.).
+   */
+  const fetchUserProfile = async (userId) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single();
+    
+    if (error) {
+      console.error("Error al obtener el perfil:", error);
+      profile.value = null;
+    } else {
+      profile.value = data;
+    }
+  };
+
+  /**
+   * Comprueba si ya existe una sesión al cargar la aplicación.
+   */
+  const checkSession = async () => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        user.value = data.session.user;
+        await fetchUserProfile(data.session.user.id);
+      }
+    } catch (e) {
+      console.error("Error al comprobar la sesión:", e);
+    } finally {
+      // ¡ESTA ERA LA LÍNEA QUE FALTABA!
+      // Al terminar de comprobar, haya sesión o no, la carga inicial ha terminado.
+      isSessionLoading.value = false;
+    }
+  };
+
+  return {
+    user,
+    profile,
+    isSessionLoading,
+    signIn,
+    signOut,
+    checkSession,
+  };
+}
+================================================================================
+--- Archivo: ./inventario-vue/src/composables/useConfirm.js ---
+================================================================================
+
+// Ruta: src/composables/useConfirm.js (VERSIÓN FINAL Y CORRECTA)
+import { ref, readonly } from 'vue';
+
+// --- ESTADO GLOBAL (fuera de la función principal) ---
+// Estas variables son compartidas por toda la aplicación.
+const isVisible = ref(false);
+const title = ref('');
+const message = ref('');
+
+// Callbacks para las acciones de confirmar o cancelar.
+let onConfirmCallback = () => {};
+let onCancelCallback = () => {};
+
+export function useConfirm() {
+  
+  /**
+   * Muestra el modal de confirmación con un título, mensaje y acciones.
+   * Esta es la función que llamaremos desde nuestras vistas (HistoryView, StockView, etc.).
+   */
+  const showConfirm = (newTitle, newMessage, onOk, onKo = () => {}) => {
+    title.value = newTitle;
+    message.value = newMessage;
+    onConfirmCallback = onOk;
+    onCancelCallback = onKo;
+    isVisible.value = true;
+  };
+
+  /**
+   * Función que se ejecuta cuando el usuario hace clic en "Confirmar" DENTRO del modal.
+   * Es utilizada por el componente AppModal.vue.
+   */
+  const onConfirm = () => {
+    onConfirmCallback();
+    isVisible.value = false;
+  };
+
+  /**
+   * Función que se ejecuta cuando el usuario cierra el modal o hace clic en "Cancelar".
+   * Es utilizada por el componente AppModal.vue.
+   */
+  const onCancel = () => {
+    onCancelCallback();
+    isVisible.value = false;
+  };
+
+  // Exponemos el estado (como solo lectura para evitar modificaciones accidentales)
+  // y las funciones para que cualquier componente pueda usarlas.
+  return {
+    isVisible: readonly(isVisible),
+    title: readonly(title),
+    message: readonly(message),
+    showConfirm,
+    onConfirm,
+    onCancel,
+  };
+}
+================================================================================
+--- Archivo: ./inventario-vue/src/composables/useInventory.js ---
+================================================================================
+
+import { ref, readonly } from 'vue';
+import { useToasts } from './useToasts';
+import { supabase } from '../supabase';
+
+// --- ESTADO GLOBAL DEL INVENTARIO ---
+const _productsWithSku = ref({});
+const _materialStock = ref({});
+const _movements = ref([]);
+const hasLoaded = ref(false);
+const _pendingIncomings = ref([]);
+
+export function useInventory() {
+  const { showSuccess, showError } = useToasts();
+
+  /**
+   * Carga los datos principales del inventario (productos, stock, movimientos).
+   */
+  async function loadFromServer() {
+    if (hasLoaded.value) return;
+    try {
+      const [productsRes, stockRes, movementsRes] = await Promise.all([
+        supabase.from('productos').select('*'),
+        supabase.from('stock').select('*'),
+        supabase.from('MOVIMIENTOS').select('*').order('fecha_entrega', { ascending: true })
+      ]);
+
+      if (productsRes.error) throw productsRes.error;
+      if (stockRes.error) throw stockRes.error;
+      if (movementsRes.error) throw movementsRes.error;
+
+      _productsWithSku.value = Object.fromEntries(productsRes.data.map(p => [p.descripcion, { sku: p.sku }]));
+      _materialStock.value = Object.fromEntries(stockRes.data.map(s => [s.producto_sku, s.cantidad]));
+      _movements.value = movementsRes.data.map(m => ({
+        id: m.id, fechaPedido: m.fecha_pedido, fechaEntrega: m.fecha_entrega, pallets: m.pallets, comentarios: m.comentarios, items: m.elementos, tipo: m.tipo
+      }));
+      
+      if (!hasLoaded.value) { showSuccess('Datos de inventario cargados.'); }
+    } catch (error) {
+      showError('No se pudo cargar el inventario principal.');
+      console.error('Error cargando inventario:', error);
+    } finally {
+      hasLoaded.value = true;
+    }
+  }
+
+  /**
+   * Carga las entradas de albaranes pendientes de revisión.
+   */
+  async function fetchPendingIncomings() {
+    try {
+      const { data, error } = await supabase
+        .from('entradas_pendientes')
+        .select('*')
+        .eq('status', 'pendiente')
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      _pendingIncomings.value = data;
+    } catch (error) {
+      showError('No se pudieron cargar las entradas pendientes.');
+      console.error('Error cargando entradas pendientes:', error);
+    }
+  }
+
+  /**
+   * Registra un movimiento (Entrada/Salida) y actualiza el stock.
+   */
+  async function addMovement(movementData) {
+    const { error: insertError } = await supabase.from('MOVIMIENTOS').insert([{
+        fecha_pedido: movementData.fechaPedido, fecha_entrega: movementData.fechaEntrega, comentarios: movementData.comentarios, tipo: movementData.tipo, elementos: movementData.items, pallets: movementData.pallets
+    }]);
+    if (insertError) { showError('Error al guardar el movimiento.'); console.error(insertError); return; }
+
+    for (const item of movementData.items) {
+      const { error: stockError } = await supabase.rpc('actualizar_stock', {
+          sku_producto: item.sku, cantidad_cambio: movementData.tipo === 'Salida' ? -item.cantidad : item.cantidad
+      });
+       if (stockError) { showError(`Error al actualizar stock para ${item.sku}.`); console.error(stockError); }
+    }
+    
+    hasLoaded.value = false;
+    await loadFromServer();
+  }
+
+  /**
+   * Procesa la aprobación de una entrada pendiente del OCR.
+   */
+  async function approvePendingIncoming(pendingEntry, movementDetails) {
+    try {
+      const newMovement = {
+        fechaPedido: new Date().toISOString().slice(0, 10),
+        fechaEntrega: new Date().toISOString().slice(0, 10),
+        comentarios: `Entrada aprobada desde albarán. ID Pendiente: ${pendingEntry.id}.`,
+        tipo: 'Entrada',
+        items: movementDetails.items,
+        pallets: movementDetails.pallets
+      };
+      await addMovement(newMovement);
+      const { error: updateError } = await supabase
+        .from('entradas_pendientes')
+        .update({ status: 'aprobado' })
+        .eq('id', pendingEntry.id);
+      if (updateError) throw updateError;
+      showSuccess('¡Entrada aprobada y registrada en el historial!');
+      await fetchPendingIncomings();
+    } catch (error) {
+      showError('Error al aprobar la entrada.');
+      console.error('Error aprobando:', error);
+    }
+  }
+
+  /**
+   * Añade un nuevo producto.
+   */
+  async function addProduct(productInfo) {
+    const { error: productError } = await supabase.from('productos').insert({ sku: productInfo.sku, descripcion: productInfo.desc });
+    if (productError) { showError('Error al crear producto. ¿SKU duplicado?'); console.error(productError); return; }
+    const { error: stockError } = await supabase.from('stock').insert({ producto_sku: productInfo.sku, cantidad: productInfo.initialStock || 0 });
+    if (stockError) { showError('Error al crear stock inicial.'); console.error(stockError); return; }
+    showSuccess('¡Producto añadido con éxito!');
+    hasLoaded.value = false;
+    await loadFromServer();
+  }
+
+  /**
+   * Registra un ajuste manual en el historial y actualiza el stock.
+   */
+  async function recordManualInventoryCount(newStockData) {
+    const productsBySku = Object.fromEntries(
+      Object.entries(_productsWithSku.value).map(([desc, { sku }]) => [sku, desc])
+    );
+    const changedItems = Object.entries(newStockData)
+      .filter(([sku, newQuantity]) => newQuantity !== (_materialStock.value[sku] || 0))
+      .map(([sku, newQuantity]) => ({ sku, desc: productsBySku[sku] || 'SKU Desconocido', cantidad: newQuantity }));
+    if (changedItems.length === 0) {
+      showSuccess('No se detectaron cambios en el stock.');
+      return;
+    }
+    const movementData = {
+      fecha_pedido: new Date().toISOString().slice(0, 10),
+      fecha_entrega: new Date().toISOString().slice(0, 10),
+      comentarios: 'Recuento manual de inventario.',
+      tipo: 'Recuento Manual',
+      elementos: changedItems,
+      pallets: 0,
+    };
+    const { error: insertError } = await supabase.from('MOVIMIENTOS').insert([movementData]);
+    if (insertError) {
+      showError('Error al registrar el ajuste en el historial.');
+      console.error("Error de Supabase al insertar movimiento:", insertError);
+      return; 
+    }
+    const updates = changedItems.map(({ sku, cantidad }) =>
+      supabase.from('stock').update({ cantidad }).eq('producto_sku', sku)
+    );
+    const results = await Promise.all(updates);
+    if (results.some(res => res.error)) {
+      showError('Error al actualizar las cantidades de stock.');
+    } else {
+      showSuccess('Ajuste de inventario registrado con éxito en el historial.');
+    }
+    hasLoaded.value = false;
+    await loadFromServer();
+    await fetchPendingIncomings();
+  }
+  
+  /**
+   * Borra un producto si no está en uso.
+   */
+  async function deleteProduct(productDesc) {
+    const isProductInUse = _movements.value.some(m => m.items.some(i => i.desc === productDesc));
+    if (isProductInUse) {
+      showError('No se puede borrar material con movimientos en el historial.');
+      return;
+    }
+    const skuToDelete = _productsWithSku.value[productDesc]?.sku;
+    if (!skuToDelete) return;
+    await supabase.from('stock').delete().eq('producto_sku', skuToDelete);
+    await supabase.from('productos').delete().eq('sku', skuToDelete);
+    showSuccess('Material borrado con éxito.');
+    hasLoaded.value = false;
+    await loadFromServer();
+  }
+
+  /**
+   * VERSIÓN DE DEPURACIÓN: Anula un movimiento y revierte el stock.
+   * Esta versión tiene logs para encontrar el punto exacto del fallo.
+   */
+  async function deleteMovement(movementId, movementType, itemsToRevert) {
+    console.log(`[DEBUG] 1. Iniciando anulación para el movimiento ID: ${movementId}`);
+    
+    try {
+      // --- PASO 1: Revertir el stock ---
+      console.log(`[DEBUG] 2. Revertiendo stock para un movimiento de tipo: "${movementType}"`);
+      
+      // Solo revertimos el stock para Entradas y Salidas.
+      // Para 'Recuento Manual', no se toca el stock, solo se borra el registro.
+      if (movementType === 'Entrada' || movementType === 'Salida') {
+        for (const item of itemsToRevert) {
+          const cantidad = Number(item.cantidad);
+          if (isNaN(cantidad)) {
+            console.error(`[ERROR] La cantidad para el item ${item.sku} no es un número. Saltando.`);
+            continue;
+          }
+
+          const amountToRevert = movementType === 'Salida' ? cantidad : -cantidad;
+          
+          console.log(`[DEBUG] 3. Llamando a la función 'actualizar_stock' para SKU ${item.sku} con cantidad ${amountToRevert}`);
+          const { error: rpcError } = await supabase.rpc('actualizar_stock', {
+            sku_producto: item.sku,
+            cantidad_cambio: amountToRevert
+          });
+
+          if (rpcError) {
+            // Si hay un error aquí, lo mostraremos y detendremos todo.
+            showError('Error CRÍTICO al revertir el stock.');
+            console.error('[ERROR FATAL EN RPC]:', rpcError);
+            throw new Error('Falló la llamada RPC a actualizar_stock');
+          }
+        }
+      }
+
+      // --- PASO 2: Borrar el movimiento del historial ---
+      console.log('[DEBUG] 4. Borrando el movimiento del historial...');
+      const { error: deleteError } = await supabase.from('MOVIMIENTOS').delete().eq('id', movementId);
+
+      if (deleteError) {
+        // Si hay un error aquí, lo mostraremos.
+        showError('Error CRÍTICO al anular el movimiento del historial.');
+        console.error('[ERROR FATAL EN DELETE]:', deleteError);
+        throw new Error('Falló el borrado en la tabla MOVIMIENTOS');
+      }
+
+      console.log('[DEBUG] 5. Movimiento borrado con éxito.');
+      showSuccess('Movimiento anulado con éxito.');
+      
+      // --- PASO 3: Recargar los datos de la aplicación ---
+      console.log('[DEBUG] 6. Recargando datos...');
+      hasLoaded.value = false;
+      await loadFromServer();
+
+    } catch (error) {
+      console.error('[DEBUG] La operación de anulación falló en algún punto.', error);
+      showError('La operación de anulación no se pudo completar.');
+    }
+  }
+
+  // Se exponen todas las funciones y el estado (como solo lectura)
+  return {
+    // Estado
+    productsWithSku: readonly(_productsWithSku),
+    materialStock: readonly(_materialStock),
+    movements: readonly(_movements),
+    pendingIncomings: readonly(_pendingIncomings),
+
+    // Funciones
+    loadFromServer,
+    fetchPendingIncomings,
+    addMovement,
+    approvePendingIncoming,
+    addProduct,
+    recordManualInventoryCount,
+    deleteProduct,
+    deleteMovement,
+  };
+}
+================================================================================
+--- Archivo: ./inventario-vue/src/composables/useToasts.js ---
+================================================================================
+
+// Ruta: src/composables/useToasts.js
+
+import { useToast } from 'vue-toastification'
+
+export function useToasts() {
+  const toast = useToast()
+
+  const showSuccess = (message) => {
+    toast.success(message)
+  }
+
+  const showError = (message) => {
+    toast.error(message)
+  }
+
+  return { showSuccess, showError }
+}

@@ -1,14 +1,17 @@
-<!-- RUTA: src/views/NewOrderView.vue (VERSIÓN FINAL COMPLETA) -->
+<!-- RUTA: src/views/NewOrderView.vue (VERSIÓN CORREGIDA) -->
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useInventory } from '../composables/useInventory';
 import { useToasts } from '../composables/useToasts';
-import { useConfirm } from '../composables/useConfirm'; // Importamos el modal de confirmación
+import { useConfirm } from '../composables/useConfirm';
 import emailjs from '@emailjs/browser';
 
 const { productsWithSku, materialStock, addMovement } = useInventory();
 const { showSuccess, showError } = useToasts();
-const { show: showConfirm } = useConfirm(); // Preparamos la función del modal
+
+// 1. CORREGIMOS LA FORMA DE IMPORTAR LA FUNCIÓN DEL MODAL
+// Simplemente obtenemos 'showConfirm' directamente.
+const { showConfirm } = useConfirm();
 
 const fechaPedido = ref(new Date().toISOString().slice(0, 10));
 const fechaEntrega = ref('');
@@ -17,6 +20,24 @@ const items = ref([{ id: 0, desc: '', sku: '', cantidad: 1 }]);
 const isSending = ref(false);
 
 const productNames = computed(() => Object.keys(productsWithSku.value));
+
+// Lógica para la fecha automática (ya estaba bien, se mantiene)
+function calcularFechaEntregaSugerida(fechaBaseStr) {
+  const fechaBase = new Date(fechaBaseStr + 'T00:00:00Z');
+  const diaDeLaSemana = fechaBase.getUTCDay();
+  if (diaDeLaSemana === 5) { // Si es viernes
+    fechaBase.setUTCDate(fechaBase.getUTCDate() + 3);
+  } else {
+    fechaBase.setUTCDate(fechaBase.getUTCDate() + 1);
+  }
+  return fechaBase.toISOString().slice(0, 10);
+}
+watch(fechaPedido, (nuevaFecha) => {
+  if (nuevaFecha) {
+    fechaEntrega.value = calcularFechaEntregaSugerida(nuevaFecha);
+  }
+}, { immediate: true });
+
 
 function addItem() {
   const newId = items.value.length > 0 ? Math.max(...items.value.map(i => i.id)) + 1 : 0;
@@ -57,7 +78,7 @@ async function submitOrder() {
   try {
     await emailjs.send(
       'service_est8vb5', 
-      'template_akvry63', // <-- RECUERDA RELLENAR ESTAS CLAVES
+      'template_akvry63',
       templateParams, 
       'CfY2CEwXzbg4TVoFn'
     );
@@ -83,33 +104,33 @@ async function submitOrder() {
   }
 }
 
-// FUNCIÓN "SIN PEDIDO" ACTUALIZADA CON EL MODAL
-async function sendNoOrderNotification() {
-  const confirmed = await showConfirm(
-    'Confirmar Notificación', // Título del modal
-    `¿Estás seguro de que quieres notificar que no hay pedido de traslado para el día de hoy (${fechaPedido.value})?` // Mensaje
-  );
-  
-  if (confirmed) {
-    isSending.value = true;
-    const templateParams = {
-      fecha_actual: fechaPedido.value,
-    };
-    try {
-      await emailjs.send(
-        'service_est8vb5', 
-        'template_z1qinpb', // <-- RECUERDA RELLENAR ESTAS CLAVES
-        templateParams, 
-        'CfY2CEwXzbg4TVoFn'
-      );
-      showSuccess(`Notificación de "Sin Pedido" enviada con éxito.`);
-    } catch (error) {
-      console.error('Error de EmailJS:', error);
-      showError('Hubo un error al enviar la notificación.');
-    } finally {
-      isSending.value = false;
+// 2. CORREGIMOS LA LÓGICA DE LA FUNCIÓN USANDO UN CALLBACK
+function sendNoOrderNotification() {
+  showConfirm(
+    'Confirmar Notificación',
+    `¿Estás seguro de que quieres notificar que no hay pedido de traslado para el día de hoy (${fechaPedido.value})?`,
+    // Esta es la función que se ejecutará SOLO si el usuario hace clic en "Confirmar"
+    async () => {
+      isSending.value = true;
+      const templateParams = {
+        fecha_actual: fechaPedido.value,
+      };
+      try {
+        await emailjs.send(
+          'service_est8vb5', 
+          'template_z1qinpb',
+          templateParams, 
+          'CfY2CEwXzbg4TVoFn'
+        );
+        showSuccess(`Notificación de "Sin Pedido" enviada con éxito.`);
+      } catch (error) {
+        console.error('Error de EmailJS:', error);
+        showError('Hubo un error al enviar la notificación.');
+      } finally {
+        isSending.value = false;
+      }
     }
-  }
+  );
 }
 </script>
 

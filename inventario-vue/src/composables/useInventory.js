@@ -125,7 +125,7 @@ export function useInventory() {
   /**
    * Registra un ajuste manual en el historial y actualiza el stock.
    */
-  async function recordManualInventoryCount(newStockData) {
+  async function recordManualInventoryCount(newStockData, reason) { // Añadido 'reason'
     const productsBySku = Object.fromEntries(
       Object.entries(_productsWithSku.value).map(([desc, { sku }]) => [sku, desc])
     );
@@ -139,7 +139,7 @@ export function useInventory() {
     const movementData = {
       fecha_pedido: new Date().toISOString().slice(0, 10),
       fecha_entrega: new Date().toISOString().slice(0, 10),
-      comentarios: 'Recuento manual de inventario.',
+      comentarios: reason, // Usamos el motivo
       tipo: 'Recuento Manual',
       elementos: changedItems,
       pallets: 0,
@@ -182,68 +182,83 @@ export function useInventory() {
     await loadFromServer();
   }
 
-  /**
-   * VERSIÓN DE DEPURACIÓN: Anula un movimiento y revierte el stock.
-   * Esta versión tiene logs para encontrar el punto exacto del fallo.
-   */
+  // ==============================================================================
+  // --- FUNCIÓN deleteMovement (VERSIÓN FINAL Y CORREGIDA) ---
+  // ==============================================================================
   async function deleteMovement(movementId, movementType, itemsToRevert) {
-    console.log(`[DEBUG] 1. Iniciando anulación para el movimiento ID: ${movementId}`);
-    
     try {
-      // --- PASO 1: Revertir el stock ---
-      console.log(`[DEBUG] 2. Revertiendo stock para un movimiento de tipo: "${movementType}"`);
-      
-      // Solo revertimos el stock para Entradas y Salidas.
-      // Para 'Recuento Manual', no se toca el stock, solo se borra el registro.
       if (movementType === 'Entrada' || movementType === 'Salida') {
+        // --- Lógica para Entradas y Salidas (ya funcionaba bien) ---
         for (const item of itemsToRevert) {
-          const cantidad = Number(item.cantidad);
-          if (isNaN(cantidad)) {
-            console.error(`[ERROR] La cantidad para el item ${item.sku} no es un número. Saltando.`);
-            continue;
-          }
-
-          const amountToRevert = movementType === 'Salida' ? cantidad : -cantidad;
-          
-          console.log(`[DEBUG] 3. Llamando a la función 'actualizar_stock' para SKU ${item.sku} con cantidad ${amountToRevert}`);
+          const amountToRevert = movementType === 'Salida' ? Number(item.cantidad) : -Number(item.cantidad);
           const { error: rpcError } = await supabase.rpc('actualizar_stock', {
             sku_producto: item.sku,
             cantidad_cambio: amountToRevert
           });
+          if (rpcError) throw rpcError;
+        }
+      } else if (movementType === 'Recuento Manual' || movementType === 'Ajuste') {
+        // --- Lógica NUEVA para anular un Recuento Manual ---
+        
+        // 1. Borramos primero el movimiento del historial.
+        const { error: deleteError } = await supabase.from('MOVIMIENTOS').delete().eq('id', movementId);
+        if (deleteError) throw deleteError;
 
-          if (rpcError) {
-            // Si hay un error aquí, lo mostraremos y detendremos todo.
-            showError('Error CRÍTICO al revertir el stock.');
-            console.error('[ERROR FATAL EN RPC]:', rpcError);
-            throw new Error('Falló la llamada RPC a actualizar_stock');
+        // 2. Por cada producto afectado, recalculamos su stock desde CERO.
+        for (const item of itemsToRevert) {
+          // Obtenemos TODO el historial de movimientos para este SKU
+          const { data: allMovementsForItem, error: historyError } = await supabase
+            .from('MOVIMIENTOS')
+            .select('tipo, elementos')
+            .order('fecha_entrega', { ascending: true }); // Es crucial ordenar por fecha
+
+          if (historyError) throw historyError;
+          
+          let recalculatedStock = 0;
+          // Iteramos sobre CADA movimiento de la base de datos
+          for (const mov of allMovementsForItem) {
+            for (const movItem of mov.elementos) {
+              if (movItem.sku === item.sku) {
+                const cantidad = Number(movItem.cantidad);
+                if (mov.tipo === 'Entrada') {
+                  recalculatedStock += cantidad;
+                } else if (mov.tipo === 'Salida') {
+                  recalculatedStock -= cantidad;
+                } else if (mov.tipo === 'Recuento Manual' || mov.tipo === 'Ajuste') {
+                  recalculatedStock = cantidad; // El recuento establece el valor
+                }
+              }
+            }
           }
+          
+          // 3. Actualizamos la tabla 'stock' con el valor recalculado y correcto.
+          const { error: updateError } = await supabase
+            .from('stock')
+            .update({ cantidad: recalculatedStock })
+            .eq('producto_sku', item.sku);
+          
+          if (updateError) throw updateError;
         }
       }
 
-      // --- PASO 2: Borrar el movimiento del historial ---
-      console.log('[DEBUG] 4. Borrando el movimiento del historial...');
-      const { error: deleteError } = await supabase.from('MOVIMIENTOS').delete().eq('id', movementId);
-
-      if (deleteError) {
-        // Si hay un error aquí, lo mostraremos.
-        showError('Error CRÍTICO al anular el movimiento del historial.');
-        console.error('[ERROR FATAL EN DELETE]:', deleteError);
-        throw new Error('Falló el borrado en la tabla MOVIMIENTOS');
+      // Si es un tipo de entrada/salida, borramos el movimiento DESPUÉS de revertir el stock.
+      if (movementType === 'Entrada' || movementType === 'Salida') {
+          const { error: deleteError } = await supabase.from('MOVIMIENTOS').delete().eq('id', movementId);
+          if (deleteError) throw deleteError;
       }
 
-      console.log('[DEBUG] 5. Movimiento borrado con éxito.');
-      showSuccess('Movimiento anulado con éxito.');
+      showSuccess('Movimiento anulado y stock revertido con éxito.');
       
-      // --- PASO 3: Recargar los datos de la aplicación ---
-      console.log('[DEBUG] 6. Recargando datos...');
+    } catch (error) {
+      showError('La operación de anulación no se pudo completar.');
+      console.error('Error en la anulación:', error);
+    } finally {
+      // Al final, SIEMPRE recargamos los datos para que la UI se actualice.
       hasLoaded.value = false;
       await loadFromServer();
-
-    } catch (error) {
-      console.error('[DEBUG] La operación de anulación falló en algún punto.', error);
-      showError('La operación de anulación no se pudo completar.');
     }
   }
+
 
   // Se exponen todas las funciones y el estado (como solo lectura)
   return {
