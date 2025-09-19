@@ -1,5 +1,7 @@
+<!-- RUTA: /inventario-vue/src/views/StockView.vue -->
+
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed } from 'vue';
 import { useInventory } from '@/composables/useInventory';
 import { useConfirm } from '@/composables/useConfirm';
 import { useAuth } from '@/composables/useAuth';
@@ -12,12 +14,10 @@ const {
 const { showConfirm } = useConfirm();
 const { profile } = useAuth();
 
-// --- LÓGICA PARA EL MODAL ---
 const isModalVisible = ref(false);
 const editedStock = ref({});
 const adjustmentReason = ref('');
 
-// Mapeo SKU -> Descripción para la UI
 const skuToDesc = computed(() => {
   const map = {};
   if (productsWithSku.value) {
@@ -29,31 +29,35 @@ const skuToDesc = computed(() => {
   return map;
 });
 
-// Función para abrir el modal de ajuste
 function openAdjustmentModal() {
-  // Al abrir, copiamos el stock actual al estado de edición
   const currentStockValues = {};
-  for (const sku in materialStock.value) {
-    currentStockValues[sku] = Number(materialStock.value[sku] || 0);
+  if (materialStock.value) {
+    for (const sku in materialStock.value) {
+      currentStockValues[sku] = Number(materialStock.value[sku] || 0);
+    }
   }
   editedStock.value = currentStockValues;
-  adjustmentReason.value = ''; // Limpiamos el motivo
+  adjustmentReason.value = '';
   isModalVisible.value = true;
 }
 
-// Función para guardar los cambios desde el modal
+// --- FUNCIÓN handleSaveStock (CORREGIDA Y SIMPLIFICADA) ---
 function handleSaveStock() {
+  // 1. Validamos que el motivo no esté vacío.
   if (!adjustmentReason.value.trim()) {
+    // Si está vacío, mostramos un alert y detenemos todo.
     alert('El motivo del ajuste es obligatorio.');
     return;
   }
 
+  // 2. Si el motivo es válido, mostramos nuestro modal de confirmación personalizado.
   showConfirm(
     'Confirmar Ajuste de Inventario',
     '¿Estás seguro de que quieres guardar este recuento? La acción se registrará en el historial y no se puede deshacer.',
+    // Esta función solo se ejecutará si el usuario hace clic en "Confirmar".
     () => {
       recordManualInventoryCount(editedStock.value, adjustmentReason.value);
-      isModalVisible.value = false;
+      isModalVisible.value = false; // Cerramos el modal de edición.
     }
   );
 }
@@ -63,7 +67,6 @@ function handleSaveStock() {
   <div class="space-y-6">
     <div class="flex justify-between items-center">
       <h2 class="text-2xl font-bold text-gray-800">Stock Actual por Material</h2>
-      <!-- BOTÓN PARA ABRIR EL MODAL (SOLO PARA ADMIN) -->
       <button 
         v-if="profile && profile.role === 'admin'"
         @click="openAdjustmentModal" 
@@ -73,7 +76,6 @@ function handleSaveStock() {
       </button>
     </div>
 
-    <!-- TABLA DE STOCK DE SOLO LECTURA -->
     <div class="overflow-x-auto">
       <table class="min-w-full bg-white border">
         <thead class="bg-gray-100">
@@ -84,18 +86,15 @@ function handleSaveStock() {
           </tr>
         </thead>
         <tbody>
-          <!-- Usamos un computed para asegurarnos de que los datos existen antes de iterar -->
           <tr v-for="(desc, sku) in skuToDesc" :key="sku" class="border-t">
             <td class="py-3 px-4">{{ desc }}</td>
             <td class="py-3 px-4 text-gray-600">{{ sku }}</td>
-            <!-- La cantidad es ahora un texto simple, no un campo de entrada -->
             <td class="py-3 px-4 font-medium">{{ materialStock[sku] || 0 }}</td>
           </tr>
         </tbody>
       </table>
     </div>
 
-    <!-- MODAL PARA REGISTRAR AJUSTE -->
     <div v-if="isModalVisible" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
       <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg">
         <h3 class="text-xl font-bold mb-4">Registrar Ajuste de Inventario</h3>
