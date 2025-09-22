@@ -1,15 +1,14 @@
-<!-- RUTA: /inventario-vue/src/views/StockView.vue -->
-
 <script setup>
 import { ref, computed } from 'vue';
-import { useInventory } from '@/composables/useInventory';
-import { useConfirm } from '@/composables/useConfirm';
-import { useAuth } from '@/composables/useAuth';
+import { useInventory } from '../composables/useInventory';
+import { useConfirm } from '../composables/useConfirm';
+import { useAuth } from '../composables/useAuth';
+import { MagnifyingGlassIcon, FunnelIcon } from '@heroicons/vue/24/outline';
 
-const { 
-  materialStock, 
-  productsWithSku, 
-  recordManualInventoryCount 
+const {
+  materialStock,
+  productsWithSku,
+  recordManualInventoryCount
 } = useInventory();
 const { showConfirm } = useConfirm();
 const { profile } = useAuth();
@@ -17,6 +16,8 @@ const { profile } = useAuth();
 const isModalVisible = ref(false);
 const editedStock = ref({});
 const adjustmentReason = ref('');
+const searchQuery = ref('');
+const stockFilter = ref('all'); // all, low, out
 
 const skuToDesc = computed(() => {
   const map = {};
@@ -27,6 +28,34 @@ const skuToDesc = computed(() => {
     }
   }
   return map;
+});
+
+const filteredItems = computed(() => {
+  console.log('Computing filteredItems, materialStock:', materialStock.value);
+  let items = Object.entries(skuToDesc.value).map(([sku, desc]) => ({
+    sku,
+    desc,
+    stock: materialStock.value[sku] || 0,
+    image: productsWithSku.value[desc]?.url_imagen
+  }));
+  console.log('Filtered items:', items);
+
+  // Filter by search
+  if (searchQuery.value) {
+    items = items.filter(item =>
+      item.desc.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+      item.sku.toLowerCase().includes(searchQuery.value.toLowerCase())
+    );
+  }
+
+  // Filter by stock level
+  if (stockFilter.value === 'low') {
+    items = items.filter(item => item.stock > 0 && item.stock < 10);
+  } else if (stockFilter.value === 'out') {
+    items = items.filter(item => item.stock === 0);
+  }
+
+  return items;
 });
 
 function openAdjustmentModal() {
@@ -41,82 +70,149 @@ function openAdjustmentModal() {
   isModalVisible.value = true;
 }
 
-// --- FUNCIÓN handleSaveStock (CORREGIDA Y SIMPLIFICADA) ---
 function handleSaveStock() {
-  // 1. Validamos que el motivo no esté vacío.
+  console.log('handleSaveStock called');
   if (!adjustmentReason.value.trim()) {
-    // Si está vacío, mostramos un alert y detenemos todo.
     alert('El motivo del ajuste es obligatorio.');
     return;
   }
 
-  // 2. Si el motivo es válido, mostramos nuestro modal de confirmación personalizado.
   showConfirm(
     'Confirmar Ajuste de Inventario',
     '¿Estás seguro de que quieres guardar este recuento? La acción se registrará en el historial y no se puede deshacer.',
-    // Esta función solo se ejecutará si el usuario hace clic en "Confirmar".
     () => {
+      console.log('Confirm callback executed');
       recordManualInventoryCount(editedStock.value, adjustmentReason.value);
-      isModalVisible.value = false; // Cerramos el modal de edición.
+      isModalVisible.value = false;
     }
   );
 }
 </script>
 
 <template>
-  <div class="space-y-6">
-    <div class="flex justify-between items-center">
-      <h2 class="text-2xl font-bold text-gray-800">Stock Actual por Material</h2>
-      <button 
+  <div>
+    <div class="flex justify-between items-center mb-6">
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Inventario</h1>
+      <button
         v-if="profile && profile.role === 'admin'"
-        @click="openAdjustmentModal" 
-        class="bg-orange-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-orange-700"
+        @click="openAdjustmentModal"
+        class="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
       >
-        Registrar Ajuste de Inventario
+        Registrar Ajuste
       </button>
     </div>
 
-    <div class="overflow-x-auto">
-      <table class="min-w-full bg-white border">
-        <thead class="bg-gray-100">
-          <tr>
-            <th class="text-left py-3 px-4 font-semibold text-sm">Material</th>
-            <th class="text-left py-3 px-4 font-semibold text-sm">SKU</th>
-            <th class="text-left py-3 px-4 font-semibold text-sm">Stock</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(desc, sku) in skuToDesc" :key="sku" class="border-t">
-            <td class="py-3 px-4">{{ desc }}</td>
-            <td class="py-3 px-4 text-gray-600">{{ sku }}</td>
-            <td class="py-3 px-4 font-medium">{{ materialStock[sku] || 0 }}</td>
-          </tr>
-        </tbody>
-      </table>
+    <!-- Search and Filters -->
+    <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
+      <div class="flex flex-col md:flex-row gap-4">
+        <div class="flex-1 relative">
+          <MagnifyingGlassIcon class="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Buscar por nombre o SKU..."
+            class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+        </div>
+        <div class="flex items-center gap-2">
+          <FunnelIcon class="w-5 h-5 text-gray-400" />
+          <select
+            v-model="stockFilter"
+            class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          >
+            <option value="all">Todos</option>
+            <option value="low">Stock Bajo (<10)</option>
+            <option value="out">Sin Stock</option>
+          </select>
+        </div>
+      </div>
     </div>
 
+    <!-- Table -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead class="bg-gray-50 dark:bg-gray-700">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                Imagen
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                Material
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                SKU
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                Stock
+              </th>
+            </tr>
+          </thead>
+          <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            <tr v-for="item in filteredItems" :key="item.sku" class="hover:bg-gray-50 dark:hover:bg-gray-700">
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="w-12 h-12 rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
+                  <img v-if="item.image" :src="item.image" :alt="item.desc" class="w-full h-full object-cover">
+                  <div v-else class="text-gray-400 text-xs">Sin imagen</div>
+                </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                {{ item.desc }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                {{ item.sku }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white font-semibold">
+                {{ item.stock }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Adjustment Modal -->
     <div v-if="isModalVisible" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-      <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg">
-        <h3 class="text-xl font-bold mb-4">Registrar Ajuste de Inventario</h3>
-        <div class="p-3 bg-yellow-50 border border-yellow-200 text-sm text-yellow-800 rounded-md mb-4">
-          <strong>Atención:</strong> Introduce el stock **"real"** que has contado. El sistema creará un movimiento de ajuste para corregir la diferencia. Esta acción quedará registrada en el historial.
+      <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-white">Registrar Ajuste de Inventario</h3>
+        <div class="p-3 bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 text-sm text-yellow-800 dark:text-yellow-200 rounded-md mb-4">
+          <strong>Atención:</strong> Introduce el stock **"real"** que has contado. El sistema creará un movimiento de ajuste para corregir la diferencia.
         </div>
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700">Motivo del Ajuste (Obligatorio)</label>
-            <input type="text" v-model="adjustmentReason" class="mt-1 block w-full p-2 border rounded-md">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Motivo del Ajuste (Obligatorio)</label>
+            <input
+              type="text"
+              v-model="adjustmentReason"
+              class="mt-1 block w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            >
           </div>
-          <h4 class="font-semibold">Cantidades Reales Contadas:</h4>
+          <h4 class="font-semibold text-gray-900 dark:text-white">Cantidades Reales Contadas:</h4>
           <div class="space-y-2 max-h-60 overflow-y-auto pr-2">
-            <div v-for="(desc, sku) in skuToDesc" :key="sku" class="grid grid-cols-2 items-center gap-4">
-              <label :for="sku" class="text-sm">{{ desc }}</label>
-              <input :id="sku" type="number" v-model.number="editedStock[sku]" class="p-2 border rounded-md">
+            <div v-for="item in filteredItems" :key="item.sku" class="grid grid-cols-2 items-center gap-4">
+              <label :for="item.sku" class="text-sm text-gray-700 dark:text-gray-300">{{ item.desc }}</label>
+              <input
+                :id="item.sku"
+                type="number"
+                v-model.number="editedStock[item.sku]"
+                class="p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              >
             </div>
           </div>
         </div>
         <div class="mt-6 flex justify-end space-x-4">
-          <button @click="isModalVisible = false" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">Cancelar</button>
-          <button @click="handleSaveStock" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700">Guardar Cambios</button>
+          <button
+            @click="isModalVisible = false"
+            class="bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            @click="handleSaveStock"
+            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Guardar Cambios
+          </button>
         </div>
       </div>
     </div>

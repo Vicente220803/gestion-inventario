@@ -39,7 +39,7 @@ function handleDeleteProduct(productDesc) {
 
 <template>
   <div class="space-y-8">
-    <h2 class="text-2xl font-bold text-gray-800">Configuración de Productos</h2>
+    <h2 class="text-2xl font-bold text-gray-800">Materiales</h2>
 
     <!-- Formulario para añadir nuevo producto -->
     <div class="p-6 bg-gray-50 rounded-lg border border-gray-200 shadow-sm">

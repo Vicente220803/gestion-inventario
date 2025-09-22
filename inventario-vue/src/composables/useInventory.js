@@ -2,6 +2,7 @@
 
 import { ref, readonly } from 'vue';
 import { useToasts } from './useToasts';
+import { useNotifications } from './useNotifications';
 import { supabase } from '../supabase';
 
 const _productsWithSku = ref({});
@@ -11,9 +12,12 @@ const hasLoaded = ref(false);
 const _pendingIncomings = ref([]);
 
 export function useInventory() {
+  console.log('useInventory: Initializing composable');
   const { showSuccess, showError } = useToasts();
+  const { createNotification } = useNotifications();
 
   async function loadFromServer() {
+    console.log('loadFromServer called');
     // Esta función está bien, pero aseguramos que se llame siempre al final.
     try {
       const [productsRes, stockRes, movementsRes] = await Promise.all([
@@ -33,17 +37,19 @@ export function useInventory() {
         const imageUrl = p.url_imagen ? `${supabaseUrl}/storage/v1/object/public/${bucketName}/${p.url_imagen}` : null;
         return [p.descripcion, { sku: p.sku, url_imagen: imageUrl }];
       }));
-      
+
       _materialStock.value = Object.fromEntries(stockRes.data.map(s => [s.producto_sku, s.cantidad]));
+      console.log('Material stock actualizado:', _materialStock.value);
       _movements.value = movementsRes.data.map(m => ({
         id: m.id, fechaPedido: m.fecha_pedido, fechaEntrega: m.fecha_entrega, pallets: m.pallets, comentarios: m.comentarios, items: m.elementos, tipo: m.tipo, created_at: m.created_at
       }));
-      
+
     } catch (error) {
       showError('No se pudo cargar el inventario principal.');
       console.error('Error cargando inventario:', error);
     } finally {
       hasLoaded.value = true;
+      console.log('loadFromServer completed');
     }
   }
 
@@ -51,31 +57,40 @@ export function useInventory() {
   // --- FUNCIÓN recordManualInventoryCount (CORREGIDA) ---
   // ==============================================================================
   async function recordManualInventoryCount(newStockData, reason) {
+    console.log('recordManualInventoryCount called with:', newStockData, reason);
     try {
       const productsBySku = Object.fromEntries(
         Object.entries(_productsWithSku.value).map(([desc, { sku }]) => [sku, desc])
       );
+      console.log('productsBySku:', productsBySku);
 
       const changedItems = Object.entries(newStockData)
         .filter(([sku, newQuantity]) => newQuantity !== (_materialStock.value[sku] || 0))
         .map(([sku, newQuantity]) => ({ sku, desc: productsBySku[sku] || 'SKU Desconocido', cantidad: newQuantity }));
-      
+
+      console.log('changedItems:', changedItems);
+
       if (changedItems.length === 0) {
+        console.log('No changes detected');
         showSuccess('No se detectaron cambios en el stock.');
         return;
       }
 
       // 1. PRIMERO, actualizamos la tabla 'stock' en la base de datos.
+      console.log('Updating stock in DB...');
       const stockUpdates = changedItems.map(({ sku, cantidad }) =>
         supabase.from('stock').update({ cantidad }).eq('producto_sku', sku)
       );
       const results = await Promise.all(stockUpdates);
+      console.log('Stock update results:', results);
       const updateError = results.some(res => res.error);
       if (updateError) {
+        console.error('Stock update error:', results.find(res => res.error));
         throw new Error('Error al actualizar las cantidades de stock.');
       }
 
       // 2. SEGUNDO, si el stock se actualizó bien, registramos el movimiento en el historial.
+      console.log('Inserting movement...');
       const movementData = {
         fecha_pedido: new Date().toISOString().slice(0, 10),
         fecha_entrega: new Date().toISOString().slice(0, 10),
@@ -86,9 +101,11 @@ export function useInventory() {
       };
       const { error: insertError } = await supabase.from('MOVIMIENTOS').insert([movementData]);
       if (insertError) {
+        console.error('Movement insert error:', insertError);
         throw new Error('El stock se actualizó, pero falló el registro en el historial.');
       }
 
+      console.log('Ajuste registrado, llamando a loadFromServer...');
       showSuccess('Ajuste de inventario registrado con éxito.');
 
     } catch (error) {
@@ -96,7 +113,9 @@ export function useInventory() {
       console.error("Error en recordManualInventoryCount:", error);
     } finally {
       // 3. PASE LO QUE PASE, recargamos los datos del servidor para que la app refleje la realidad.
+      console.log('Ejecutando loadFromServer en finally...');
       await loadFromServer();
+      console.log('loadFromServer completado.');
     }
   }
 
@@ -160,6 +179,58 @@ export function useInventory() {
       console.error('Error en la anulación:', error);
     } finally {
       // Al final, SIEMPRE recargamos los datos para que la UI se actualice.
+      await loadFromServer();
+    }
+  }
+  // ==============================================================================
+  // --- FUNCIÓN addMovement (IMPLEMENTADA) ---
+  // ==============================================================================
+  async function addMovement(movementData) {
+    try {
+      const { fechaPedido, fechaEntrega, pallets, comentarios, items, tipo } = movementData;
+
+      const movementRecord = {
+        fecha_pedido: fechaPedido,
+        fecha_entrega: fechaEntrega,
+        pallets: pallets,
+        comentarios: comentarios || '',
+        elementos: items,
+        tipo: tipo,
+      };
+
+      const { error } = await supabase.from('MOVIMIENTOS').insert([movementRecord]);
+      if (error) throw error;
+
+      // Actualizar stock si es Entrada o Salida
+      if (tipo === 'Entrada' || tipo === 'Salida') {
+        for (const item of items) {
+          const cantidadCambio = tipo === 'Entrada' ? item.cantidad : -item.cantidad;
+          const { error: stockError } = await supabase.rpc('actualizar_stock', {
+            sku_producto: item.sku,
+            cantidad_cambio: cantidadCambio
+          });
+          if (stockError) {
+            console.error('Error actualizando stock:', stockError);
+            throw new Error('Movimiento registrado, pero error al actualizar stock.');
+          }
+        }
+      }
+
+      // Crear notificación (no bloquear si falla)
+      try {
+        const notificationMessage = tipo === 'Salida' ? 'Nuevo pedido de traslado registrado' : 'Nueva entrada de inventario registrada';
+        await createNotification(notificationMessage);
+      } catch (notificationError) {
+        console.warn('Error creando notificación, pero movimiento registrado:', notificationError);
+      }
+
+      showSuccess('Movimiento registrado con éxito.');
+
+    } catch (error) {
+      showError('No se pudo registrar el movimiento.');
+      console.error('Error en addMovement:', error);
+    } finally {
+      // Recargar datos para actualizar la UI
       await loadFromServer();
     }
   }

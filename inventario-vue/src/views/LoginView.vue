@@ -1,17 +1,19 @@
 <script setup>
 import { ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth';
 
-// Obtenemos SOLO la función signIn
+const router = useRouter();
 const { signIn } = useAuth();
 
 const email = ref('');
 const password = ref('');
 
-// La función de login ahora es súper simple:
-// solo llama a signIn y no se preocupa del estado de carga.
-const handleLogin = () => {
-  signIn(email.value, password.value);
+// Función de login asíncrona que redirige después del login exitoso
+const handleLogin = async () => {
+  await signIn(email.value, password.value);
+  // Después del login, redirigir al dashboard
+  router.push('/');
 };
 </script>
 

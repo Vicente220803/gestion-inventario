@@ -1,12 +1,7 @@
 // Ruta: src/composables/useAuth.js (VERSIÓN FINAL CORREGIDA)
-import { ref } from 'vue';
 import { supabase } from '../supabase';
 import { useToasts } from './useToasts';
-
-// Estado global reactivo
-const user = ref(null);
-const profile = ref(null);
-const isSessionLoading = ref(true); // Siempre empieza en 'true' al cargar la web
+import { user, profile, isSessionLoading } from '../authState';
 
 export function useAuth() {
   const { showError, showSuccess } = useToasts();
@@ -53,11 +48,12 @@ export function useAuth() {
       .select('role')
       .eq('id', userId)
       .single();
-    
+
     if (error) {
       console.error("Error al obtener el perfil:", error);
       profile.value = null;
     } else {
+      console.log(`[DEBUG] Rol obtenido para usuario ${userId}: ${data.role}`);
       profile.value = data;
     }
   };
@@ -65,6 +61,7 @@ export function useAuth() {
   /**
    * Comprueba si ya existe una sesión al cargar la aplicación.
    */
+    console.log('useAuth: Checking session');
   const checkSession = async () => {
     try {
       const { data } = await supabase.auth.getSession();
