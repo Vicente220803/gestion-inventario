@@ -26,8 +26,8 @@ import { useAuth } from '../composables/useAuth'
 const { profile } = useAuth()
 
 const allNavigation = [
-  { name: 'Inventario', path: '/inventory', icon: CubeIcon },
-  { name: 'Movimientos', path: '/movements', icon: ClockIcon },
+  { name: 'Stock', path: '/stock', icon: CubeIcon },
+  { name: 'Historial', path: '/historial', icon: ClockIcon },
   { name: 'Entradas', path: '/incomings', icon: PlusIcon },
   { name: 'Nuevo Pedido', path: '/new-order', icon: PlusIcon },
   { name: 'Materiales', path: '/settings', icon: CogIcon },
@@ -39,7 +39,7 @@ const navigation = computed(() => {
   if (userRole === 'admin') {
     return allNavigation
   } else if (userRole === 'operario') {
-    return allNavigation.filter(item => ['/inventory', '/new-order'].includes(item.path))
+    return allNavigation.filter(item => ['/stock', '/new-order', '/historial'].includes(item.path))
   }
   return []
 })

@@ -16,7 +16,7 @@ const tabLabels = {
   stock: 'Stock',
   incomings: 'Entradas',
   settings: 'Añadir Material',
-  history: 'Ver Historial',
+  history: 'Historial',
 };
 </script>
 

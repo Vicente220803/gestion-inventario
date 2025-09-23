@@ -17,6 +17,7 @@ export function useInventory() {
   const { createNotification } = useNotifications();
 
   async function loadFromServer() {
+    console.time('loadInventory');
     console.log('loadFromServer called');
     // Esta función está bien, pero aseguramos que se llame siempre al final.
     try {
@@ -50,6 +51,7 @@ export function useInventory() {
     } finally {
       hasLoaded.value = true;
       console.log('loadFromServer completed');
+      console.timeEnd('loadInventory');
     }
   }
 

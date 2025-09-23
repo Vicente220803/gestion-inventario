@@ -18,16 +18,16 @@ const routes = [
         redirect: '/new-order'
       },
       {
-        path: '/inventory',
-        name: 'Inventory',
+        path: '/stock',
+        name: 'Stock',
         component: () => import('./views/StockView.vue'),
         meta: { allowedRoles: ['admin', 'operario'] }
       },
       {
-        path: '/movements',
-        name: 'Movements',
+        path: '/historial',
+        name: 'Historial',
         component: () => import('./views/HistoryView.vue'),
-        meta: { allowedRoles: ['admin'] }
+        meta: { allowedRoles: ['admin', 'operario'] }
       },
       {
         path: '/incomings',

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useInventory } from '../composables/useInventory';
 import { useConfirm } from '../composables/useConfirm';
 import { useAuth } from '../composables/useAuth';
@@ -8,7 +8,8 @@ import { MagnifyingGlassIcon, FunnelIcon } from '@heroicons/vue/24/outline';
 const {
   materialStock,
   productsWithSku,
-  recordManualInventoryCount
+  recordManualInventoryCount,
+  loadFromServer
 } = useInventory();
 const { showConfirm } = useConfirm();
 const { profile } = useAuth();
@@ -87,6 +88,10 @@ function handleSaveStock() {
     }
   );
 }
+
+onMounted(() => {
+  loadFromServer();
+});
 </script>
 
 <template>

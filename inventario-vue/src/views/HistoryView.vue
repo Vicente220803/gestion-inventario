@@ -2,20 +2,26 @@
 import { ref, computed } from 'vue';
 import { useInventory } from '@/composables/useInventory';
 import { useConfirm } from '@/composables/useConfirm';
+import { useAuth } from '@/composables/useAuth';
 import * as docx from 'docx';
 import { saveAs } from 'file-saver';
 
 const { movements, materialStock, productsWithSku, deleteMovement } = useInventory();
 const { showConfirm } = useConfirm();
+const { profile } = useAuth();
 
 const startDate = ref('');
 const endDate = ref('');
 
 const filteredMovements = computed(() => {
-  if (!startDate.value || !endDate.value) {
-    return [...movements.value].reverse();
+  let movs = [...movements.value];
+  if (profile.value?.role === 'operario') {
+    movs = movs.filter(m => m.tipo === 'Salida');
   }
-  return [...movements.value]
+  if (!startDate.value || !endDate.value) {
+    return movs.reverse();
+  }
+  return movs
     .filter(m => {
       const moveDate = new Date(m.fechaEntrega);
       return moveDate >= new Date(startDate.value) && moveDate <= new Date(endDate.value);
@@ -216,7 +222,7 @@ async function calculateAndExport() {
         <label for="end-date" class="block text-sm font-medium text-gray-700">Hasta</label>
         <input type="date" id="end-date" v-model="endDate" class="mt-1 block w-full p-2 border rounded-md">
       </div>
-      <button @click="calculateAndExport" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 w-full">
+      <button v-if="profile.value?.role !== 'operario'" @click="calculateAndExport" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 w-full">
         Calcular y Exportar
       </button>
     </div>

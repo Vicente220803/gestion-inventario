@@ -12,6 +12,7 @@ export function useAuth() {
   const signIn = async (email, password) => {
     isSessionLoading.value = true;
     try {
+      console.time('signIn');
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         showError(error.message);
@@ -22,6 +23,7 @@ export function useAuth() {
       user.value = data.user;
       await fetchUserProfile(data.user.id);
       showSuccess('¡Bienvenido!');
+      console.timeEnd('signIn');
     } catch (e) {
       showError('Ocurrió un error inesperado al iniciar sesión.');
     } finally {
@@ -42,27 +44,21 @@ export function useAuth() {
   /**
    * Obtiene los datos del perfil del usuario (rol, nombre, etc.).
    */
-  const fetchUserProfile = async (userId) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', userId)
-      .single();
+const fetchUserProfile = async (userId) => {
+  const { data, error } = await supabase.from('profiles').select('role').eq('id', userId).single();
+  if (error) {
+    profile.value = { id: userId, role: 'operario' };
+  } else {
+    profile.value = { id: userId, role: data.role };
+  }
+};
 
-    if (error) {
-      console.error("Error al obtener el perfil:", error);
-      profile.value = null;
-    } else {
-      console.log(`[DEBUG] Rol obtenido para usuario ${userId}: ${data.role}`);
-      profile.value = data;
-    }
-  };
 
   /**
    * Comprueba si ya existe una sesión al cargar la aplicación.
    */
-    console.log('useAuth: Checking session');
   const checkSession = async () => {
+    console.log('useAuth: Checking session');
     try {
       const { data } = await supabase.auth.getSession();
       if (data.session) {

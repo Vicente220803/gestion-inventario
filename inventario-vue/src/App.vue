@@ -1,21 +1,13 @@
 <script setup>
 import { onMounted } from 'vue';
 import { useAuth } from './composables/useAuth';
-import { useInventory } from './composables/useInventory';
 import { useConfirm } from './composables/useConfirm';
 import { useRouter } from 'vue-router';
 import AppModal from './components/AppModal.vue';
 
 const { user, profile, isSessionLoading, checkSession, signOut } = useAuth();
-const { loadFromServer, fetchPendingIncomings } = useInventory();
 const { isVisible, title, message, onConfirm, onCancel } = useConfirm();
 const router = useRouter();
-
-// Load data when authenticated
-if (user.value && profile.value) {
-  loadFromServer();
-  fetchPendingIncomings();
-}
 
 const handleSignOut = async () => {
   await signOut();
