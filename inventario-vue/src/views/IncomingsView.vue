@@ -2,7 +2,10 @@
 import { ref, computed } from 'vue';
 import { useInventory } from '@/composables/useInventory';
 import { useConfirm } from '@/composables/useConfirm';
+import { useAuth } from '@/composables/useAuth';
 import ApprovalModal from '@/components/ApprovalModal.vue';
+
+const { profile } = useAuth();
 
 const { 
   productsWithSku,
@@ -124,9 +127,9 @@ function handleFinalApproval(movementDetails) {
     </div>
     
     <!-- SECCIÓN DE ENTRADAS PENDIENTES DE REVISIÓN (RESTAURADA) -->
-    <div>
+    <div v-if="profile?.value?.role !== 'operario'">
       <h2 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">Entradas Pendientes de Revisión (desde Albarán)</h2>
-      
+
       <div v-if="pendingIncomings.length > 0" class="space-y-4">
         <div v-for="entry in pendingIncomings" :key="entry.id" class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
           <div class="flex justify-between items-start">

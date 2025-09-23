@@ -15,7 +15,7 @@ const endDate = ref('');
 
 const filteredMovements = computed(() => {
   let movs = [...movements.value];
-  if (profile.value?.role === 'operario') {
+  if (profile?.value?.role === 'operario') {
     movs = movs.filter(m => m.tipo === 'Salida');
   }
   if (!startDate.value || !endDate.value) {
@@ -222,7 +222,7 @@ async function calculateAndExport() {
         <label for="end-date" class="block text-sm font-medium text-gray-700">Hasta</label>
         <input type="date" id="end-date" v-model="endDate" class="mt-1 block w-full p-2 border rounded-md">
       </div>
-      <button v-if="profile.value?.role !== 'operario'" @click="calculateAndExport" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 w-full">
+      <button v-if="profile?.value?.role !== 'operario'" @click="calculateAndExport" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 w-full">
         Calcular y Exportar
       </button>
     </div>

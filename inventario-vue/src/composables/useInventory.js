@@ -21,15 +21,17 @@ export function useInventory() {
     console.log('loadFromServer called');
     // Esta función está bien, pero aseguramos que se llame siempre al final.
     try {
-      const [productsRes, stockRes, movementsRes] = await Promise.all([
+      const [productsRes, stockRes, movementsRes, pendingRes] = await Promise.all([
         supabase.from('productos').select('sku, descripcion, url_imagen'),
         supabase.from('stock').select('*'),
-        supabase.from('MOVIMIENTOS').select('*').order('created_at', { ascending: true })
+        supabase.from('MOVIMIENTOS').select('*').order('created_at', { ascending: true }),
+        supabase.from('entradas_pendientes').select('*').order('created_at', { ascending: false })
       ]);
 
       if (productsRes.error) throw productsRes.error;
       if (stockRes.error) throw stockRes.error;
       if (movementsRes.error) throw movementsRes.error;
+      if (pendingRes.error) throw pendingRes.error;
 
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const bucketName = 'imagenes-productos';
@@ -44,6 +46,9 @@ export function useInventory() {
       _movements.value = movementsRes.data.map(m => ({
         id: m.id, fechaPedido: m.fecha_pedido, fechaEntrega: m.fecha_entrega, pallets: m.pallets, comentarios: m.comentarios, items: m.elementos, tipo: m.tipo, created_at: m.created_at
       }));
+
+      _pendingIncomings.value = pendingRes.data || [];
+      console.log('Pending incomings loaded:', _pendingIncomings.value.length);
 
     } catch (error) {
       showError('No se pudo cargar el inventario principal.');
@@ -81,7 +86,7 @@ export function useInventory() {
       // 1. PRIMERO, actualizamos la tabla 'stock' en la base de datos.
       console.log('Updating stock in DB...');
       const stockUpdates = changedItems.map(({ sku, cantidad }) =>
-        supabase.from('stock').update({ cantidad }).eq('producto_sku', sku)
+        supabase.from('stock').upsert({ producto_sku: sku, cantidad }, { onConflict: 'producto_sku' })
       );
       const results = await Promise.all(stockUpdates);
       console.log('Stock update results:', results);
@@ -90,6 +95,11 @@ export function useInventory() {
         console.error('Stock update error:', results.find(res => res.error));
         throw new Error('Error al actualizar las cantidades de stock.');
       }
+
+      // Actualizar localmente para UI inmediata
+      changedItems.forEach(({ sku, cantidad }) => {
+        _materialStock.value[sku] = cantidad;
+      });
 
       // 2. SEGUNDO, si el stock se actualizó bien, registramos el movimiento en el historial.
       console.log('Inserting movement...');
@@ -167,8 +177,7 @@ export function useInventory() {
           // Actualizamos la tabla 'stock' con el valor correcto y final.
           const { error: updateError } = await supabase
             .from('stock')
-            .update({ cantidad: recalculatedStock })
-            .eq('producto_sku', item.sku);
+            .upsert({ producto_sku: item.sku, cantidad: recalculatedStock }, { onConflict: 'producto_sku' });
           
           if (updateError) throw updateError;
         }
@@ -188,6 +197,7 @@ export function useInventory() {
   // --- FUNCIÓN addMovement (IMPLEMENTADA) ---
   // ==============================================================================
   async function addMovement(movementData) {
+    console.log('addMovement called with:', movementData);
     try {
       const { fechaPedido, fechaEntrega, pallets, comentarios, items, tipo } = movementData;
 
@@ -200,32 +210,38 @@ export function useInventory() {
         tipo: tipo,
       };
 
+      console.log('Inserting movement:', movementRecord);
       const { error } = await supabase.from('MOVIMIENTOS').insert([movementRecord]);
       if (error) throw error;
+      console.log('Movement inserted successfully');
 
       // Actualizar stock si es Entrada o Salida
       if (tipo === 'Entrada' || tipo === 'Salida') {
+        console.log('Updating stock for', tipo);
         for (const item of items) {
-          const cantidadCambio = tipo === 'Entrada' ? item.cantidad : -item.cantidad;
-          const { error: stockError } = await supabase.rpc('actualizar_stock', {
-            sku_producto: item.sku,
-            cantidad_cambio: cantidadCambio
-          });
-          if (stockError) {
-            console.error('Error actualizando stock:', stockError);
+          const { data: current } = await supabase.from('stock').select('cantidad').eq('producto_sku', item.sku).single();
+          const currentQty = current?.cantidad || 0;
+          const newQty = tipo === 'Entrada' ? currentQty + item.cantidad : currentQty - item.cantidad;
+          console.log(`Updating stock for ${item.sku}: ${currentQty} -> ${newQty}`);
+          const { error: upsertError } = await supabase.from('stock').upsert({ producto_sku: item.sku, cantidad: newQty });
+          if (upsertError) {
+            console.error('Error upserting stock:', upsertError);
             throw new Error('Movimiento registrado, pero error al actualizar stock.');
           }
         }
+        console.log('Stock updated successfully');
       }
 
       // Crear notificación (no bloquear si falla)
       try {
         const notificationMessage = tipo === 'Salida' ? 'Nuevo pedido de traslado registrado' : 'Nueva entrada de inventario registrada';
         await createNotification(notificationMessage);
+        console.log('Notification created');
       } catch (notificationError) {
         console.warn('Error creando notificación, pero movimiento registrado:', notificationError);
       }
 
+      console.log('About to show success');
       showSuccess('Movimiento registrado con éxito.');
 
     } catch (error) {
@@ -237,14 +253,99 @@ export function useInventory() {
     }
   }
 
+  async function fetchPendingIncomings() {
+    console.log('fetchPendingIncomings called');
+    try {
+      const { data, error } = await supabase.from('entradas_pendientes').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      _pendingIncomings.value = data || [];
+      console.log('Pending incomings loaded:', _pendingIncomings.value.length);
+    } catch (error) {
+      console.error('Error fetching pending incomings:', error);
+    }
+  }
+
+  async function approvePendingIncoming(pendingEntry, movementDetails) {
+    console.log('approvePendingIncoming called with:', pendingEntry.id, movementDetails);
+    let movementInserted = false;
+    let stockUpdated = false;
+    try {
+      // Create movement
+      const movementData = {
+        fecha_pedido: pendingEntry.fecha_albaran || new Date().toISOString().slice(0, 10),
+        fecha_entrega: new Date().toISOString().slice(0, 10),
+        pallets: movementDetails.pallets,
+        comentarios: `Entrada desde albarán - Proveedor: ${pendingEntry.proveedor || 'N/A'}`,
+        elementos: movementDetails.items,
+        tipo: 'Entrada'
+      };
+      console.log('Inserting movement:', movementData);
+      const { data: insertedMovement, error: insertError } = await supabase.from('MOVIMIENTOS').insert([movementData]).select('id');
+      if (insertError) throw insertError;
+      movementInserted = true;
+      const movementId = insertedMovement[0].id;
+      console.log('Movement inserted with ID:', movementId);
+
+      // Update stock
+      const stockUpdates = [];
+      for (const item of movementDetails.items) {
+        const { data: current } = await supabase.from('stock').select('cantidad').eq('producto_sku', item.sku).single();
+        const currentQty = current?.cantidad || 0;
+        const newQty = currentQty + item.cantidad;
+        console.log(`Updating stock for ${item.sku}: ${currentQty} -> ${newQty}`);
+        stockUpdates.push({ sku: item.sku, newQty, oldQty: currentQty });
+        const { error: upsertError } = await supabase.from('stock').upsert({ producto_sku: item.sku, cantidad: newQty }, { onConflict: 'producto_sku' });
+        if (upsertError) throw upsertError;
+      }
+      stockUpdated = true;
+
+      // Delete from pending
+      console.log('Deleting pending entry:', pendingEntry.id);
+      const { error: deleteError } = await supabase.from('entradas_pendientes').delete().eq('id', pendingEntry.id);
+      if (deleteError) throw deleteError;
+
+      showSuccess('Entrada aprobada y stock actualizado.');
+      console.log('Approval successful');
+
+      // Refresh
+      await fetchPendingIncomings();
+      await loadFromServer();
+
+    } catch (error) {
+      console.error('Error in approvePendingIncoming:', error);
+      showError('Error al aprobar la entrada. Revirtiendo cambios si es posible.');
+
+      // Simular rollback: revertir stock si se actualizó
+      if (stockUpdated) {
+        console.log('Attempting to revert stock updates');
+        try {
+          for (const update of stockUpdates) {
+            const { error: revertError } = await supabase.from('stock').upsert({ producto_sku: update.sku, cantidad: update.oldQty }, { onConflict: 'producto_sku' });
+            if (revertError) console.error('Error reverting stock for', update.sku, revertError);
+          }
+          console.log('Stock reverted');
+        } catch (revertError) {
+          console.error('Failed to revert stock:', revertError);
+        }
+      }
+
+      // Si movimiento insertado pero stock falló, el movimiento queda (puedes decidir borrarlo)
+      if (movementInserted && !stockUpdated) {
+        console.log('Movement inserted but stock failed - movement remains for audit');
+      }
+
+      // Refresh anyway
+      await fetchPendingIncomings();
+      await loadFromServer();
+    }
+  }
+
   // --- OTRAS FUNCIONES (addProduct, recordManualInventoryCount, etc.) ---
   // Estas funciones se quedan como estaban, ya que su lógica era correcta.
   // ... (Aquí irían el resto de funciones: addProduct, deleteProduct, etc. las he omitido por brevedad pero deben estar en tu archivo)
   async function addProduct(productInfo) { /* ... */ }
   async function deleteProduct(productDesc) { /* ... */ }
   async function recordManualInventoryCount(newStockData, reason) { /* ... */ }
-  async function fetchPendingIncomings() { /* ... */ }
-  async function approvePendingIncoming(pendingEntry, movementDetails) { /* ... */ }
 
 
   // --- 4. EXPORTACIÓN ---
