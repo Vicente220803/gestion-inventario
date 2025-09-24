@@ -9,7 +9,82 @@ const props = defineProps({
 });
 const emit = defineEmits(['close', 'approved']);
 const { productsWithSku } = useInventory();
-const { showError } = useToasts();
+const { showError, showSuccess } = useToasts();
+
+// Estado para el selector de fecha
+const showDatePicker = ref(false);
+const suggestedDate = ref('');
+const selectedDate = ref('');
+
+// Configuración de días no laborables: array de fechas en formato YYYY-MM-DD o días de semana (0=Domingo, 6=Sábado)
+// Para testing: descomentar la línea siguiente para simular miércoles no laborable
+const nonWorkingDays = [
+  // 3, // Miércoles no laborable (ejemplo para testing)
+];
+
+// Función para calcular la próxima fecha válida para pedido de traslado
+function calculateNextTransferDate(today = new Date()) {
+  const dayOfWeek = today.getDay(); // 0=Domingo, 1=Lunes, ..., 6=Sábado
+  let nextDate = new Date(today);
+
+  if (dayOfWeek >= 1 && dayOfWeek <= 4) { // Lunes a Jueves: siguiente día
+    nextDate.setDate(today.getDate() + 1);
+  } else if (dayOfWeek === 5) { // Viernes: lunes siguiente
+    nextDate.setDate(today.getDate() + 3);
+  } else { // Sábado o Domingo: lunes siguiente
+    const daysToMonday = (8 - dayOfWeek) % 7 || 7;
+    nextDate.setDate(today.getDate() + daysToMonday);
+  }
+
+  // Saltar días no laborables
+  while (isNonWorkingDay(nextDate)) {
+    nextDate.setDate(nextDate.getDate() + 1);
+  }
+
+  return nextDate;
+}
+
+function isNonWorkingDay(date) {
+  const dateStr = date.toISOString().slice(0, 10);
+  const dayOfWeek = date.getDay();
+  // No laborables: domingos (0), sábados (6), o fechas específicas
+  return dayOfWeek === 0 || dayOfWeek === 6 || nonWorkingDays.includes(dateStr) || nonWorkingDays.includes(dayOfWeek);
+}
+
+function handleNoTransferOrder() {
+  console.log('handleNoTransferOrder called');
+  const nextDate = calculateNextTransferDate();
+  console.log('Calculated next date:', nextDate);
+  suggestedDate.value = nextDate.toISOString().slice(0, 10);
+  selectedDate.value = suggestedDate.value; // Pre-seleccionar la sugerida
+  showDatePicker.value = true;
+  console.log('showDatePicker set to true');
+}
+
+function confirmNoTransferOrder() {
+  if (!selectedDate.value) {
+    showError('Debes seleccionar una fecha.');
+    return;
+  }
+  const selected = new Date(selectedDate.value + 'T00:00:00');
+  if (selected <= new Date()) {
+    showError('La fecha debe ser futura.');
+    return;
+  }
+  if (isNonWorkingDay(selected)) {
+    showError('La fecha seleccionada es un día no laborable. Elige otra.');
+    return;
+  }
+  const formattedDate = selected.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  console.log('Fecha de traslado seleccionada:', selectedDate.value, formattedDate);
+  showSuccess(`No hay pedido de traslado para ${formattedDate}`);
+  showDatePicker.value = false;
+  // Aquí podrías agregar lógica adicional, como registrar en logs o notificar
+}
+
+function cancelDatePicker() {
+  showDatePicker.value = false;
+}
 
 
 // --- TUS FUNCIONES DE BÚSQUEDA (CONSERVADAS) ---
@@ -176,8 +251,30 @@ function submitApproval() {
       </div>
 
       <div class="mt-6 flex justify-end space-x-4">
+        <button @click="handleNoTransferOrder" class="bg-yellow-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-yellow-600">No hay pedido de traslado</button>
         <button @click="$emit('close')" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">Cancelar</button>
         <button @click="submitApproval" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700">Confirmar y Registrar</button>
+      </div>
+    </div>
+
+    <!-- Modal de selección de fecha -->
+    <div v-if="showDatePicker" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-60">
+      <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+        <h3 class="text-lg font-bold mb-4">Seleccionar Fecha para Pedido de Traslado</h3>
+        <p class="mb-4">Fecha sugerida: <strong>{{ new Date(suggestedDate).toLocaleDateString('es-ES') }}</strong></p>
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-2">Elige una fecha futura (excluyendo días no laborables)</label>
+          <input
+            type="date"
+            v-model="selectedDate"
+            :min="new Date(Date.now() + 86400000).toISOString().slice(0, 10)"
+            class="mt-1 block w-full p-2 border rounded-md"
+          />
+        </div>
+        <div class="flex justify-end space-x-4">
+          <button @click="cancelDatePicker" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">Cancelar</button>
+          <button @click="confirmNoTransferOrder" class="bg-yellow-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-yellow-600">Confirmar Fecha</button>
+        </div>
       </div>
     </div>
   </div>
