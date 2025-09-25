@@ -1,29 +1,25 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import { useInventory } from '@/composables/useInventory';
 import { useConfirm } from '@/composables/useConfirm';
 import { useAuth } from '@/composables/useAuth';
-import ApprovalModal from '@/components/ApprovalModal.vue';
+// Importamos el componente para las entradas desde Excel
+import EntradasPendientesExcel from '@/components/EntradasPendientes.vue';
 
 const { profile } = useAuth();
 
+// Hemos limpiado esto para quitar la lógica de 'pendingIncomings' que ya no se usa
 const { 
   productsWithSku,
-  pendingIncomings, 
-  approvePendingIncoming,
   addMovement
 } = useInventory();
 const { showConfirm } = useConfirm();
-
-// --- ESTADO PARA LA SECCIÓN DE REVISIÓN ---
-const isModalVisible = ref(false);
-const selectedEntry = ref(null);
 
 // --- ESTADO PARA EL FORMULARIO DE ENTRADA MANUAL ---
 const manualFechaEntrada = ref(new Date().toISOString().slice(0, 10));
 const manualItems = ref([{ sku: '', desc: '', cantidad: null }]);
 
-// --- LÓGICA PARA EL FORMULARIO MANUAL ---
+// --- LÓGICA PARA EL FORMULARIO MANUAL (sin cambios) ---
 function addManualRow() {
   manualItems.value.push({ sku: '', desc: '', cantidad: null });
 }
@@ -70,34 +66,12 @@ function handleManualSubmit() {
     }
   );
 }
-
-// --- LÓGICA PARA LA SECCIÓN DE REVISIÓN ---
-function handleApproveClick(entry) {
-  selectedEntry.value = entry;
-  isModalVisible.value = true;
-}
-
-function handleModalClose() {
-  isModalVisible.value = false;
-  selectedEntry.value = null;
-}
-
-function handleFinalApproval(movementDetails) {
-  showConfirm(
-    'Confirmar Registro de Stock',
-    '¿Estás seguro de que quieres registrar esta entrada? La acción actualizará el stock y no se puede deshacer.',
-    () => {
-      approvePendingIncoming(selectedEntry.value, movementDetails);
-      handleModalClose();
-    }
-  );
-}
 </script>
 
 <template>
   <div class="space-y-8">
 
-    <!-- SECCIÓN DE ENTRADA MANUAL -->
+    <!-- SECCIÓN DE ENTRADA MANUAL (se mantiene) -->
     <div>
       <h2 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">Registrar Nueva Entrada Manual</h2>
       <div class="p-4 bg-gray-50 rounded-lg border space-y-4">
@@ -126,35 +100,11 @@ function handleFinalApproval(movementDetails) {
       </div>
     </div>
     
-    <!-- SECCIÓN DE ENTRADAS PENDIENTES DE REVISIÓN (RESTAURADA) -->
+    <!-- SECCIÓN DE ENTRADAS DESDE EXCEL (la nueva funcionalidad) -->
     <div v-if="profile?.value?.role !== 'operario'">
-      <h2 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">Entradas Pendientes de Revisión (desde Albarán)</h2>
-
-      <div v-if="pendingIncomings.length > 0" class="space-y-4">
-        <div v-for="entry in pendingIncomings" :key="entry.id" class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <div class="flex justify-between items-start">
-            <div>
-              <p class="font-semibold">Albarán recibido el: <span class="font-normal">{{ new Date(entry.created_at).toLocaleString() }}</span></p>
-              <a :href="entry.file_url" target="_blank" class="text-sm text-blue-600 hover:underline">Ver Albarán Original en Drive</a>
-            </div>
-            <button @click="handleApproveClick(entry)" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700">
-              Revisar y Aprobar
-            </button>
-          </div>
-        </div>
-      </div>
-      <div v-else>
-        <p class="text-gray-500">No hay nuevas entradas pendientes de revisión.</p>
-      </div>
+      <!-- El componente se encarga de mostrar su propio título y contenido -->
+      <EntradasPendientesExcel />
     </div>
-
-    <!-- El modal de aprobación -->
-    <ApprovalModal 
-      v-if="isModalVisible" 
-      :entry="selectedEntry"
-      @close="handleModalClose"
-      @approved="handleFinalApproval"
-    />
 
   </div>
 </template>

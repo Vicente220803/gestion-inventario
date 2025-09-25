@@ -1,13 +1,8 @@
-// RUTA: /src/supabase.js
-
 import { createClient } from '@supabase/supabase-js'
 
-// ANTES (La llave estaba aquí):
-// const supabaseUrl = 'https://wktqxfudyskiffqvzttf.supabase.co'
-// const supabaseAnonKey = 'eyJhbGciOi...'
+// Rellena estas dos variables con los datos de tu proyecto en Supabase
+const supabaseUrl = 'https://wktqxfudyskiffqvzttf.supabase.co'; // Tu URL de Supabase
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndrdHF4ZnVkeXNraWZmcXZ6dHRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYyMDIxNjEsImV4cCI6MjA3MTc3ODE2MX0.oZPq8gEKdEYiJuzgikpnSZ89THyB1xrHFNn4va06wn0'; // TU CLAVE PÚBLICA (ANON KEY)
 
-// AHORA (Le decimos que la coja del bolsillo .env):
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Exportamos el cliente para usarlo en toda la aplicación
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
