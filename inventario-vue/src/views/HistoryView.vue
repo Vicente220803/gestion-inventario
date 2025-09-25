@@ -1,3 +1,4 @@
+<!-- RUTA: /inventario-vue/src/views/HistoryView.vue (VERSIÓN FINAL CON AJUSTES CORRECTOS EN EXPORTACIÓN) -->
 <script setup>
 import { ref, computed } from 'vue';
 import { useInventory } from '@/composables/useInventory';
@@ -6,7 +7,7 @@ import { useAuth } from '@/composables/useAuth';
 import * as docx from 'docx';
 import { saveAs } from 'file-saver';
 
-const { movements, materialStock, productsWithSku, deleteMovement } = useInventory();
+const { movements, productsWithSku, deleteMovement } = useInventory();
 const { showConfirm } = useConfirm();
 const { profile } = useAuth();
 
@@ -14,19 +15,19 @@ const startDate = ref('');
 const endDate = ref('');
 
 const filteredMovements = computed(() => {
-  let movs = [...movements.value];
+  let movs = movements.value;
   if (profile?.value?.role === 'operario') {
     movs = movs.filter(m => m.tipo === 'Salida');
   }
-  if (!startDate.value || !endDate.value) {
-    return movs.reverse();
+  if (startDate.value && endDate.value) {
+    return movs.filter(m => {
+      const moveDate = new Date(m.created_at);
+      const start = new Date(startDate.value + 'T00:00:00');
+      const end = new Date(endDate.value + 'T23:59:59');
+      return moveDate >= start && moveDate <= end;
+    });
   }
-  return movs
-    .filter(m => {
-      const moveDate = new Date(m.fechaEntrega);
-      return moveDate >= new Date(startDate.value) && moveDate <= new Date(endDate.value);
-    })
-    .reverse();
+  return movs;
 });
 
 function handleDelete(movement) {
@@ -40,7 +41,7 @@ function handleDelete(movement) {
 }
 
 // ==============================================================================
-// --- FUNCIÓN DE EXPORTACIÓN (VERSIÓN FINAL Y DEFINITIVA) ---
+// --- FUNCIÓN DE EXPORTACIÓN (LÓGICA DE AJUSTES CORREGIDA) ---
 // ==============================================================================
 async function calculateAndExport() {
   if (!startDate.value || !endDate.value) {
@@ -51,40 +52,30 @@ async function calculateAndExport() {
   const COSTE_POR_MOVIMIENTO_UNITARIO = 1.75;
   const COSTE_ALMACENAJE_DIARIO_UNITARIO = 0.20;
 
-  // Ordenamos TODOS los movimientos una sola vez al principio.
-  const allMovementsSorted = [...movements.value].sort((a, b) => {
-    const dateA = new Date(a.created_at || a.fechaEntrega);
-    const dateB = new Date(b.created_at || b.fechaEntrega);
-    return dateA - dateB;
-  });
+  const allMovementsSorted = [...movements.value].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
-  // --- 1. CÁLCULO DE STOCK INICIAL: Reconstrucción histórica hasta el día ANTERIOR al inicio del informe ---
-  const stockPorSku = {};
-  if (productsWithSku.value && typeof productsWithSku.value === 'object') {
-    Object.values(productsWithSku.value).forEach(p => {
-      stockPorSku[p.sku] = 0;
-    });
-  }
+  const runningStockState = {};
+  Object.values(productsWithSku.value).forEach(p => { runningStockState[p.sku] = 0; });
 
   const dayBeforeStartDate = new Date(startDate.value);
   dayBeforeStartDate.setDate(dayBeforeStartDate.getDate() - 1);
+  dayBeforeStartDate.setHours(23, 59, 59, 999);
 
-  // Filtramos solo los movimientos que ocurrieron ANTES de la fecha de inicio del informe.
-  const movementsBeforeReport = allMovementsSorted.filter(m => new Date(m.fechaEntrega) <= dayBeforeStartDate);
+  const movementsBeforeReport = allMovementsSorted.filter(m => new Date(m.created_at) <= dayBeforeStartDate);
 
-  // Aplicamos estos movimientos para obtener el estado inicial correcto.
   movementsBeforeReport.forEach(mov => {
-    mov.items.forEach(item => {
-      const cantidad = Number(item.cantidad) || 0;
-      if (stockPorSku[item.sku] === undefined) stockPorSku[item.sku] = 0;
-
-      if (mov.tipo === 'Entrada') stockPorSku[item.sku] += cantidad;
-      else if (mov.tipo === 'Salida') stockPorSku[item.sku] -= cantidad;
-      else if (mov.tipo === 'Recuento Manual' || mov.tipo === 'Ajuste') stockPorSku[item.sku] = cantidad;
+    (mov.items || []).forEach(item => {
+      runningStockState[item.sku] = runningStockState[item.sku] || 0;
+      if (mov.tipo === 'Entrada') {
+        runningStockState[item.sku] += Number(item.cantidad || 0);
+      } else if (mov.tipo === 'Salida') {
+        runningStockState[item.sku] -= Number(item.cantidad || 0);
+      } else if (['Ajuste', 'Recuento Manual'].includes(mov.tipo)) {
+        runningStockState[item.sku] = Number(item.cantidad_nueva ?? item.cantidad ?? 0);
+      }
     });
   });
 
-  // --- 2. CÁLCULO DIARIO DENTRO DEL RANGO DEL INFORME ---
   const summaryData = [];
   let currentDate = new Date(startDate.value);
   const rangeEndDate = new Date(endDate.value);
@@ -93,46 +84,47 @@ async function calculateAndExport() {
 
   while (currentDate <= rangeEndDate) {
     const dateStr = currentDate.toISOString().slice(0, 10);
-    const stockInicialDelDia = Object.values(stockPorSku).reduce((sum, qty) => sum + qty, 0);
+    
+    const stockInicialDelDia = Object.values(runningStockState).reduce((sum, qty) => sum + qty, 0);
 
-    const movementsForDay = allMovementsSorted.filter(m => m.fechaEntrega === dateStr);
+    const movementsForDay = allMovementsSorted.filter(m => m.created_at.startsWith(dateStr));
+    
+    let totalIn = 0;
+    let totalOut = 0;
 
-    let costIn = 0;
-    let costOut = 0;
-    let hasManualCount = false;
-
-    // Aplicamos los movimientos del día para actualizar el stock.
+    // APLICAMOS LOS MOVIMIENTOS DEL DÍA
     movementsForDay.forEach(mov => {
-        if (mov.tipo === 'Entrada') mov.items.forEach(item => costIn += Number(item.cantidad) || 0);
-        else if (mov.tipo === 'Salida') mov.items.forEach(item => costOut += Number(item.cantidad) || 0);
-        else if (mov.tipo === 'Recuento Manual' || mov.tipo === 'Ajuste') hasManualCount = true;
-        
-        mov.items.forEach(item => {
-            const cantidad = Number(item.cantidad) || 0;
-            if (stockPorSku[item.sku] === undefined) stockPorSku[item.sku] = 0;
-
-            if (mov.tipo === 'Recuento Manual' || mov.tipo === 'Ajuste') stockPorSku[item.sku] = cantidad;
-            else stockPorSku[item.sku] += (mov.tipo === 'Entrada' ? cantidad : -cantidad);
-        });
+      (mov.items || []).forEach(item => {
+        runningStockState[item.sku] = runningStockState[item.sku] || 0;
+        if (mov.tipo === 'Entrada') {
+          const cantidad = Number(item.cantidad || 0);
+          runningStockState[item.sku] += cantidad;
+          totalIn += cantidad; // SÍ cuenta como movimiento
+        } else if (mov.tipo === 'Salida') {
+          const cantidad = Number(item.cantidad || 0);
+          runningStockState[item.sku] -= cantidad;
+          totalOut += cantidad; // SÍ cuenta como movimiento
+        } else if (['Ajuste', 'Recuento Manual'].includes(mov.tipo)) {
+          // Un ajuste establece el stock, pero NO se cuenta como entrada/salida física
+          runningStockState[item.sku] = Number(item.cantidad_nueva ?? item.cantidad ?? 0);
+        }
+      });
     });
 
-    const finalStock = Object.values(stockPorSku).reduce((sum, qty) => sum + qty, 0);
-    const cambioNetoDelDia = finalStock - stockInicialDelDia;
-    let displayIn = cambioNetoDelDia > 0 ? cambioNetoDelDia : 0;
-    let displayOut = cambioNetoDelDia < 0 ? Math.abs(cambioNetoDelDia) : 0;
+    const stockFinalDelDia = Object.values(runningStockState).reduce((sum, qty) => sum + qty, 0);
+    // El coste de movimiento SOLO incluye entradas y salidas reales.
+    const costeMovimientoDia = (totalIn + totalOut) * COSTE_POR_MOVIMIENTO_UNITARIO;
+    const costeAlmacenajeDia = stockFinalDelDia * COSTE_ALMACENAJE_DIARIO_UNITARIO;
 
-    let inText = `+${displayIn}`;
-    let outText = `-${displayOut}`;
-
-    if (hasManualCount && cambioNetoDelDia !== (costIn - costOut)) {
-        if (displayIn > 0) inText += " (Ajuste)";
-        if (displayOut > 0) outText += " (Ajuste)";
-    }
-    
-    const costeMovimientoDia = (costIn + costOut) * COSTE_POR_MOVIMIENTO_UNITARIO;
-    const costeAlmacenajeDia = finalStock * COSTE_ALMACENAJE_DIARIO_UNITARIO;
-
-    summaryData.push({ date: dateStr, initial: stockInicialDelDia, in: inText, out: outText, final: finalStock, costeMovimiento: costeMovimientoDia, costeAlmacenaje: costeAlmacenajeDia });
+    summaryData.push({ 
+      date: dateStr, 
+      initial: stockInicialDelDia, 
+      in: `+${totalIn}`, 
+      out: `-${totalOut}`, 
+      final: stockFinalDelDia, 
+      costeMovimiento: costeMovimientoDia, 
+      costeAlmacenaje: costeAlmacenajeDia 
+    });
     
     costeTotalMovimientos += costeMovimientoDia;
     costeTotalAlmacenaje += costeAlmacenajeDia;
@@ -141,7 +133,7 @@ async function calculateAndExport() {
 
   const costeTotalGeneral = costeTotalMovimientos + costeTotalAlmacenaje;
   
-  // --- 3. GENERACIÓN DEL DOCUMENTO WORD ---
+  // --- GENERACIÓN DEL DOCUMENTO WORD ---
   try {
     const doc = new docx.Document({
       sections: [{
@@ -212,7 +204,6 @@ async function calculateAndExport() {
   <div class="space-y-6">
     <h2 class="text-2xl font-bold text-gray-800">Historial y Resumen</h2>
 
-    <!-- Sección de Filtros -->
     <div class="p-4 bg-gray-50 rounded-lg border grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
       <div>
         <label for="start-date" class="block text-sm font-medium text-gray-700">Desde</label>
@@ -222,34 +213,38 @@ async function calculateAndExport() {
         <label for="end-date" class="block text-sm font-medium text-gray-700">Hasta</label>
         <input type="date" id="end-date" v-model="endDate" class="mt-1 block w-full p-2 border rounded-md">
       </div>
-      <button v-if="profile?.value?.role !== 'operario'" @click="calculateAndExport" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 w-full">
+      <button v-if="profile?.role !== 'operario'" @click="calculateAndExport" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 w-full">
         Calcular y Exportar
       </button>
     </div>
 
-    <!-- Sección de Historial Detallado -->
     <div>
       <h3 class="text-xl font-semibold text-gray-700 mb-4">Historial de Movimientos Detallado</h3>
       <div v-if="filteredMovements.length > 0" class="space-y-4">
         <div v-for="movement in filteredMovements" :key="movement.id" class="p-4 border rounded-lg bg-white shadow-sm relative">
           <div class="flex justify-between items-start">
             <div>
-              <p class="font-bold">Fecha: <span class="font-normal">{{ movement.fechaEntrega }}</span></p>
+              <p class="font-bold">Fecha: <span class="font-normal">{{ new Date(movement.created_at).toLocaleDateString('es-ES') }}</span></p>
               <p class="font-bold">Movimiento: 
-                <span :class="movement.tipo === 'Entrada' ? 'text-green-600' : 'text-red-600'">{{ movement.tipo }}</span>
+                <span :class="{'text-green-600': movement.tipo === 'Entrada', 'text-red-600': movement.tipo === 'Salida', 'text-blue-600': ['Ajuste', 'Recuento Manual'].includes(movement.tipo)}">{{ movement.tipo }}</span>
               </p>
               <p class="font-bold">Total de Pallets: <span class="font-normal">{{ movement.pallets }}</span></p>
               <div class="mt-2">
                 <p class="font-bold">Artículos:</p>
                 <ul class="list-disc list-inside text-sm text-gray-600">
                   <li v-for="(item, index) in movement.items" :key="index">
-                    {{ item.cantidad }} x {{ item.desc }} (SKU: {{ item.sku }})
+                    <span v-if="['Ajuste', 'Recuento Manual'].includes(movement.tipo)">
+                      {{ item.desc }} (SKU: {{ item.sku }}) cambió de <strong>{{ item.cantidad_anterior }}</strong> a <strong>{{ item.cantidad_nueva }}</strong> (Diferencia: {{ item.diferencia }})
+                    </span>
+                    <span v-else>
+                      {{ item.cantidad }} x {{ item.desc }} (SKU: {{ item.sku }})
+                    </span>
                   </li>
                 </ul>
               </div>
               <p v-if="movement.comentarios" class="mt-2 font-bold">Comentarios: <span class="font-normal italic">{{ movement.comentarios }}</span></p>
             </div>
-            <button @click="handleDelete(movement)" class="absolute top-4 right-4 bg-red-100 text-red-700 text-xs font-bold py-1 px-3 rounded-full hover:bg-red-200">
+            <button v-if="profile?.role === 'admin'" @click="handleDelete(movement)" class="absolute top-4 right-4 bg-red-100 text-red-700 text-xs font-bold py-1 px-3 rounded-full hover:bg-red-200">
               Anular
             </button>
           </div>

@@ -1,3 +1,4 @@
+<!-- RUTA: /inventario-vue/src/views/StockView.vue (CORREGIDO) -->
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useInventory } from '../composables/useInventory';
@@ -71,6 +72,7 @@ function openAdjustmentModal() {
   isModalVisible.value = true;
 }
 
+// === FUNCIÓN CORREGIDA ===
 function handleSaveStock() {
   console.log('handleSaveStock called');
   if (!adjustmentReason.value.trim()) {
@@ -81,9 +83,17 @@ function handleSaveStock() {
   showConfirm(
     'Confirmar Ajuste de Inventario',
     '¿Estás seguro de que quieres guardar este recuento? La acción se registrará en el historial y no se puede deshacer.',
-    () => {
+    // 1. Convertimos la función de callback a 'async' para poder usar 'await'
+    async () => {
       console.log('Confirm callback executed');
-      recordManualInventoryCount(editedStock.value, adjustmentReason.value);
+      
+      // 2. Usamos 'await' para esperar a que la función de guardado TERMINE
+      await recordManualInventoryCount(editedStock.value, adjustmentReason.value);
+      
+      // 3. Una vez terminado el guardado, volvemos a cargar los datos del servidor
+      await loadFromServer();
+
+      // 4. Solo cerramos el modal cuando todo ha terminado con éxito
       isModalVisible.value = false;
     }
   );
