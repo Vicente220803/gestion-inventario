@@ -5,6 +5,8 @@ import { useInventory } from '../composables/useInventory';
 import { useConfirm } from '../composables/useConfirm';
 import { useAuth } from '../composables/useAuth';
 import { MagnifyingGlassIcon, FunnelIcon } from '@heroicons/vue/24/outline';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const {
   materialStock,
@@ -32,14 +34,18 @@ const skuToDesc = computed(() => {
   return map;
 });
 
-const filteredItems = computed(() => {
-  console.log('Computing filteredItems, materialStock:', materialStock.value);
-  let items = Object.entries(skuToDesc.value).map(([sku, desc]) => ({
+const allItems = computed(() => {
+  return Object.entries(skuToDesc.value).map(([sku, desc]) => ({
     sku,
     desc,
     stock: materialStock.value[sku] || 0,
     image: productsWithSku.value[desc]?.url_imagen
   }));
+});
+
+const filteredItems = computed(() => {
+  console.log('Computing filteredItems, materialStock:', materialStock.value);
+  let items = allItems.value;
   console.log('Filtered items:', items);
 
   // Filter by search
@@ -99,6 +105,31 @@ function handleSaveStock() {
   );
 }
 
+function generatePDF() {
+  const doc = new jsPDF();
+  doc.setFontSize(18);
+  doc.text('Inventario de Stock', 20, 20);
+  doc.setFontSize(12);
+  doc.text(`Fecha de generación: ${new Date().toLocaleDateString('es-ES')}`, 20, 30);
+
+  const tableData = allItems.value.map(item => [
+    item.sku,
+    item.desc,
+    item.stock
+  ]);
+
+  autoTable(doc, {
+    head: [['SKU', 'Descripción', 'Cantidad']],
+    body: tableData,
+    startY: 40,
+    styles: { fontSize: 8 },
+    headStyles: { fillColor: [41, 128, 185] },
+    alternateRowStyles: { fillColor: [245, 245, 245] }
+  });
+
+  doc.save('inventario.pdf');
+}
+
 onMounted(() => {
   loadFromServer();
 });
@@ -108,13 +139,21 @@ onMounted(() => {
   <div>
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Inventario</h1>
-      <button
-        v-if="profile && profile.role === 'admin'"
-        @click="openAdjustmentModal"
-        class="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
-      >
-        Registrar Ajuste
-      </button>
+      <div class="flex space-x-2">
+        <button
+          @click="generatePDF"
+          class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          Generar PDF
+        </button>
+        <button
+          v-if="profile && profile.role === 'admin'"
+          @click="openAdjustmentModal"
+          class="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+        >
+          Registrar Ajuste
+        </button>
+      </div>
     </div>
 
     <!-- Search and Filters -->

@@ -1,19 +1,15 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import { supabase } from '../supabaseClient.js';
-// Importamos todo lo que necesitamos de 'useInventory'
 import { useInventory } from '@/composables/useInventory';
 
-// Obtenemos las funciones y datos necesarios
 const { addMovement, productsWithSku } = useInventory();
 
-// --- ESTADO REACTIVO ---
 const entradas = ref([]);
 const cargando = ref(true);
 const entradaSeleccionada = ref(null);
 const cantidadModificada = ref(0);
 
-// --- LÓGICA ---
 const fetchEntradas = async () => {
   cargando.value = true;
   const { data, error } = await supabase
@@ -42,51 +38,54 @@ const handleAccept = async () => {
   if (!entradaSeleccionada.value) return;
 
   try {
-    const descripcionMaterial = entradaSeleccionada.value.parsed_data.descripcion;
+    const skuDesdeExcel = entradaSeleccionada.value.parsed_data.descripcion.trim();
     
-    // --- 1. BUSCAR EL SKU CORRESPONDIENTE A LA DESCRIPCIÓN ---
     const productoEncontrado = Object.values(productsWithSku.value).find(
-      p => p.descripcion.trim().toLowerCase() === descripcionMaterial.trim().toLowerCase()
+      p => p && p.sku && p.sku.trim().toLowerCase() === skuDesdeExcel.toLowerCase()
     );
 
     if (!productoEncontrado) {
-      alert(`Error: No se encontró el SKU para el material "${descripcionMaterial}". Asegúrate de que el material exista en el maestro de productos.`);
+      alert(`Error: No se encontró el SKU "${skuDesdeExcel}" en el maestro de productos.`);
       return;
     }
 
-    // --- 2. PREPARAMOS EL NUEVO MOVIMIENTO CON EL FORMATO CORRECTO ---
+    const fechaActual = new Date().toISOString().slice(0, 10);
     const newMovement = {
-      fechaEntrega: new Date().toISOString().slice(0, 10),
+      fecha_pedido: fechaActual,
+      fechaEntrega: fechaActual,
       comentarios: `Entrada desde Excel (Fila: ${entradaSeleccionada.value.parsed_data.fila_excel})`,
       tipo: 'Entrada',
       items: [{
-        desc: descripcionMaterial,
-        sku: productoEncontrado.sku, // <--- AÑADIMOS EL SKU ENCONTRADO
+        desc: productoEncontrado.descripcion,
+        sku: productoEncontrado.sku,
         cantidad: cantidadModificada.value
       }],
       pallets: cantidadModificada.value
     };
 
-    // --- 3. LLAMAMOS A LA FUNCIÓN PARA AÑADIR EL MOVIMIENTO ---
-    await addMovement(newMovement, { showToast: false });
+    await addMovement(newMovement, { showToast: true });
     
-    // --- 4. BORRAMOS LA ENTRADA DE LA TABLA DE PENDIENTES ---
     const { error: deleteError } = await supabase
       .from('entradas_pendientes')
       .delete()
       .eq('id', entradaSeleccionada.value.id);
 
-    if (deleteError) throw deleteError;
+    if (deleteError) {
+      throw deleteError;
+    }
 
-    alert('Entrada aceptada y registrada correctamente!');
+    // --- LÍNEA AÑADIDA PARA ACTUALIZACIÓN INSTANTÁNEA ---
+    // Filtramos la lista local para quitar el elemento que acabamos de procesar.
+    entradas.value = entradas.value.filter(e => e.id !== entradaSeleccionada.value.id);
+    
     cerrarModal();
+
   } catch (error) {
     console.error('Error al aceptar la entrada:', error);
     alert('Error al aceptar la entrada: ' + error.message);
   }
 };
 
-// --- LIFECYCLE HOOKS ---
 let channel = null;
 
 onMounted(() => {
@@ -97,7 +96,7 @@ onMounted(() => {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'entradas_pendientes' },
       (payload) => {
-        console.log('Cambio detectado:', payload);
+        console.log('Cambio detectado en pendientes:', payload);
         fetchEntradas();
       }
     )

@@ -21,6 +21,8 @@
     "chart.js": "^4.5.0",
     "docx": "^8.5.0",
     "file-saver": "^2.0.5",
+    "jspdf": "^3.0.3",
+    "jspdf-autotable": "^5.0.2",
     "papaparse": "^5.4.1",
     "v-calendar": "^3.1.2",
     "vue": "^3.5.18",
