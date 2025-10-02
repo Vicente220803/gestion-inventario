@@ -146,6 +146,7 @@ onMounted(() => {
       <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Inventario</h1>
       <div class="flex space-x-2">
         <button
+          v-if="profile?.role !== 'operario'"
           @click="generatePDF"
           class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
         >
