@@ -66,6 +66,10 @@ const filteredItems = computed(() => {
   return items;
 });
 
+const totalPallets = computed(() => {
+  return Object.values(materialStock.value).reduce((sum, qty) => sum + (qty || 0), 0);
+});
+
 function openAdjustmentModal() {
   const currentStockValues = {};
   if (materialStock.value) {
@@ -111,6 +115,7 @@ function generatePDF() {
   doc.text('Inventario de Stock', 20, 20);
   doc.setFontSize(12);
   doc.text(`Fecha de generación: ${new Date().toLocaleDateString('es-ES')}`, 20, 30);
+  doc.text(`Total Pallets Disponibles: ${totalPallets.value}`, 20, 40);
 
   const tableData = allItems.value.map(item => [
     item.sku,
@@ -121,7 +126,7 @@ function generatePDF() {
   autoTable(doc, {
     head: [['SKU', 'Descripción', 'Cantidad']],
     body: tableData,
-    startY: 40,
+    startY: 50,
     styles: { fontSize: 8 },
     headStyles: { fillColor: [41, 128, 185] },
     alternateRowStyles: { fillColor: [245, 245, 245] }
@@ -154,6 +159,12 @@ onMounted(() => {
           Registrar Ajuste
         </button>
       </div>
+    </div>
+
+    <!-- Stock Summary -->
+    <div class="bg-blue-50 dark:bg-blue-900 p-4 rounded-lg mb-6">
+      <h2 class="text-lg font-semibold text-blue-800 dark:text-blue-200">Resumen de Stock</h2>
+      <p class="text-2xl font-bold text-blue-900 dark:text-blue-100">{{ totalPallets }} Pallets Disponibles</p>
     </div>
 
     <!-- Search and Filters -->

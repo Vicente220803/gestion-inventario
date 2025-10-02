@@ -87,7 +87,10 @@ async function calculateAndExport() {
     
     const stockInicialDelDia = Object.values(runningStockState).reduce((sum, qty) => sum + qty, 0);
 
-    const movementsForDay = allMovementsSorted.filter(m => m.created_at.startsWith(dateStr));
+    const movementsForDay = allMovementsSorted.filter(m => {
+      const effectiveDate = m.tipo === 'Salida' ? m.fechaEntrega : m.created_at;
+      return effectiveDate.startsWith(dateStr);
+    });
     
     let totalIn = 0;
     let totalOut = 0;
@@ -116,14 +119,15 @@ async function calculateAndExport() {
     const costeMovimientoDia = (totalIn + totalOut) * COSTE_POR_MOVIMIENTO_UNITARIO;
     const costeAlmacenajeDia = stockFinalDelDia * COSTE_ALMACENAJE_DIARIO_UNITARIO;
 
-    summaryData.push({ 
-      date: dateStr, 
-      initial: stockInicialDelDia, 
-      in: `+${totalIn}`, 
-      out: `-${totalOut}`, 
-      final: stockFinalDelDia, 
-      costeMovimiento: costeMovimientoDia, 
-      costeAlmacenaje: costeAlmacenajeDia 
+    summaryData.push({
+      date: dateStr,
+      initial: stockInicialDelDia,
+      in: `+${totalIn}`,
+      out: `-${totalOut}`,
+      final: stockFinalDelDia,
+      fechaPedidoSalidas: movementsForDay.filter(m => m.tipo === 'Salida').map(m => new Date(m.created_at).toLocaleDateString('es-ES')).join(', '),
+      costeMovimiento: costeMovimientoDia,
+      costeAlmacenaje: costeAlmacenajeDia
     });
     
     costeTotalMovimientos += costeMovimientoDia;
@@ -151,6 +155,7 @@ async function calculateAndExport() {
                   new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Entradas", bold: true })] })] }),
                   new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Salidas", bold: true })] })] }),
                   new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Final", bold: true })] })] }),
+                  new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Fecha Pedido Salidas", bold: true })] })] }),
                   new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Coste Mov.", bold: true })] })] }),
                   new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Coste Alm.", bold: true })] })] }),
                 ],
@@ -162,6 +167,7 @@ async function calculateAndExport() {
                   new docx.TableCell({ children: [new docx.Paragraph(day.in)] }),
                   new docx.TableCell({ children: [new docx.Paragraph(day.out)] }),
                   new docx.TableCell({ children: [new docx.Paragraph(String(day.final))] }),
+                  new docx.TableCell({ children: [new docx.Paragraph(day.fechaPedidoSalidas)] }),
                   new docx.TableCell({ children: [new docx.Paragraph(`${day.costeMovimiento.toFixed(2)} €`)] }),
                   new docx.TableCell({ children: [new docx.Paragraph(`${day.costeAlmacenaje.toFixed(2)} €`)] }),
                 ],
@@ -224,7 +230,7 @@ async function calculateAndExport() {
         <div v-for="movement in filteredMovements" :key="movement.id" class="p-4 border rounded-lg bg-white shadow-sm relative">
           <div class="flex justify-between items-start">
             <div>
-              <p class="font-bold">Fecha: <span class="font-normal">{{ new Date(movement.created_at).toLocaleDateString('es-ES') }}</span></p>
+              <p class="font-bold">Fecha: <span class="font-normal">{{ movement.tipo === 'Salida' ? `${new Date(movement.created_at).toLocaleDateString('es-ES')} - ${new Date(movement.fechaEntrega).toLocaleDateString('es-ES')}` : new Date(movement.created_at).toLocaleDateString('es-ES') }}</span></p>
               <p class="font-bold">Movimiento: 
                 <span :class="{'text-green-600': movement.tipo === 'Entrada', 'text-red-600': movement.tipo === 'Salida', 'text-blue-600': ['Ajuste', 'Recuento Manual'].includes(movement.tipo)}">{{ movement.tipo }}</span>
               </p>
