@@ -35,7 +35,6 @@ const allNavigation = [
 
 const navigation = computed(() => {
   const userRole = profile.value?.role
-  console.log(`[DEBUG] Sidebar - userRole: ${userRole}, profile:`, profile.value)
   if (userRole === 'admin') {
     return allNavigation
   } else if (userRole === 'operario') {
