@@ -6,6 +6,7 @@ import { profile } from '../authState'; // <-- CORRECCIÓN: Importamos desde aut
 import { MagnifyingGlassIcon, FunnelIcon } from '@heroicons/vue/24/outline';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import ImageModal from '../components/ImageModal.vue';
 
 const {
   materialStock,
@@ -22,6 +23,10 @@ const editedStock = ref({});
 const adjustmentReason = ref('');
 const searchQuery = ref('');
 const stockFilter = ref('all'); // all, low, out
+
+// Estado para el modal de imagen
+const isImageModalVisible = ref(false);
+const selectedImageUrl = ref('');
 
 const skuToDesc = computed(() => {
   const map = {};
@@ -99,6 +104,13 @@ function handleSaveStock() {
       isModalVisible.value = false;
     }
   );
+}
+
+function showLargeImage(url) {
+  if (url) {
+    selectedImageUrl.value = url;
+    isImageModalVisible.value = true;
+  }
 }
 
 function generatePDF() {
@@ -205,7 +217,7 @@ function generatePDF() {
           <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             <tr v-for="item in filteredItems" :key="item.sku" class="hover:bg-gray-50 dark:hover:bg-gray-700">
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="w-12 h-12 rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
+                <div class="w-12 h-12 rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-600 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity" @click="showLargeImage(item.image)">
                   <img v-if="item.image" :src="item.image" :alt="item.desc" class="w-full h-full object-cover">
                   <div v-else class="text-gray-400 text-xs">Sin imagen</div>
                 </div>
@@ -270,5 +282,12 @@ function generatePDF() {
         </div>
       </div>
     </div>
+
+    <!-- Image Modal -->
+    <ImageModal
+      v-if="isImageModalVisible"
+      :image-url="selectedImageUrl"
+      @close="isImageModalVisible = false"
+    />
   </div>
 </template>
