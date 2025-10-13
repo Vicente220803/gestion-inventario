@@ -1,14 +1,13 @@
 <script setup>
 import { ref } from 'vue';
-import { useInventory } from '@/composables/useInventory';
-import { useConfirm } from '@/composables/useConfirm';
-import { useAuth } from '@/composables/useAuth';
+import { useInventory } from '../composables/useInventory'; // Ruta corregida si es necesario
+import { useConfirm } from '../composables/useConfirm';
+import { profile } from '../authState'; // <-- CORRECCIÓN: Importamos desde authState
 // Importamos el componente para las entradas desde Excel
-import EntradasPendientesExcel from '@/components/EntradasPendientes.vue';
+import EntradasPendientesExcel from '../components/EntradasPendientes.vue'; // Ruta corregida si es necesario
 
-const { profile } = useAuth();
+// const { profile } = useAuth(); // <-- LÍNEA ELIMINADA
 
-// Hemos limpiado esto para quitar la lógica de 'pendingIncomings' que ya no se usa
 const { 
   productsWithSku,
   addMovement
@@ -101,7 +100,8 @@ function handleManualSubmit() {
     </div>
     
     <!-- SECCIÓN DE ENTRADAS DESDE EXCEL (la nueva funcionalidad) -->
-    <div v-if="profile?.value?.role !== 'operario'">
+    <!-- CORRECCIÓN: El v-if estaba mal. Debe ser profile.role y no profile.value.role -->
+    <div v-if="profile?.role !== 'operario'">
       <!-- El componente se encarga de mostrar su propio título y contenido -->
       <EntradasPendientesExcel />
     </div>

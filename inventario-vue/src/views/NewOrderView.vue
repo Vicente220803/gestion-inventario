@@ -128,24 +128,38 @@ function sendNoOrderNotification() {
 
 // Esta nueva función maneja el envío del correo DESPUÉS de confirmar en el modal
 async function handleNotificationConfirm(modifiedDate) {
+  console.log('[DEBUG] handleNotificationConfirm called with modifiedDate:', modifiedDate);
   // Cerramos el modal
   isConfirmModalVisible.value = false;
   isSending.value = true;
-  
+
   // Usamos la fecha que recibimos del modal (modificada o no)
   const templateParams = { fecha_entrega: modifiedDate };
-  
+
   try {
     await emailjs.send(
-      import.meta.env.VITE_EMAILJS_SERVICE_ID, 
+      import.meta.env.VITE_EMAILJS_SERVICE_ID,
       import.meta.env.VITE_EMAILJS_TEMPLATE_ID_SIN_PEDIDO,
-      templateParams, 
+      templateParams,
       import.meta.env.VITE_EMAILJS_PUBLIC_KEY
     );
-    showSuccess(`Notificación de "Sin Pedido" para el día ${modifiedDate} enviada con éxito.`);
+    console.log('[DEBUG] Email sent successfully, now registering movement...');
+    const registrationDate = new Date().toISOString().slice(0, 10); // Fecha de registro (hoy)
+    console.log('[DEBUG] Registration date:', registrationDate, 'Order date (from form):', fechaPedido.value, 'Delivery date (from modal):', modifiedDate);
+    // Registrar el movimiento en el historial
+    await addMovement({
+      fechaPedido: fechaPedido.value, // Fecha del pedido del formulario
+      fechaEntrega: modifiedDate, // Fecha de entrega seleccionada en el modal
+      pallets: 0, // Sin pallets para "Sin Pedido"
+      comentarios: `Notificación de Sin Pedido de Traslado - Registrado el ${registrationDate}`,
+      items: [], // Sin items
+      tipo: 'Sin Pedido',
+    });
+    console.log('[DEBUG] Movement registered successfully with fechaPedido:', fechaPedido.value, 'fechaEntrega:', modifiedDate);
+    // No mostrar notificación adicional, solo la del envío de email
   } catch (error) {
-    console.error('Error de EmailJS:', error);
-    showError('Hubo un error al enviar la notificación.');
+    console.error('Error de EmailJS o addMovement:', error);
+    showError('Hubo un error al enviar la notificación o registrar el movimiento.');
   } finally {
     isSending.value = false;
   }

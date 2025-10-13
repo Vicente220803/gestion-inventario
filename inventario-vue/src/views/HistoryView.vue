@@ -1,15 +1,14 @@
-<!-- RUTA: /inventario-vue/src/views/HistoryView.vue (VERSIÓN FINAL CON AJUSTES CORRECTOS EN EXPORTACIÓN) -->
 <script setup>
 import { ref, computed } from 'vue';
-import { useInventory } from '@/composables/useInventory';
-import { useConfirm } from '@/composables/useConfirm';
-import { useAuth } from '@/composables/useAuth';
+import { useInventory } from '../composables/useInventory'; // Asumiendo que la ruta es así
+import { useConfirm } from '../composables/useConfirm';
+import { profile } from '../authState'; // <-- CORRECCIÓN: Importamos desde authState
 import * as docx from 'docx';
 import { saveAs } from 'file-saver';
 
 const { movements, productsWithSku, deleteMovement } = useInventory();
 const { showConfirm } = useConfirm();
-const { profile } = useAuth();
+// const { profile } = useAuth(); // <-- LÍNEA ELIMINADA
 
 const startDate = ref('');
 const endDate = ref('');
@@ -88,34 +87,31 @@ async function calculateAndExport() {
     const stockInicialDelDia = Object.values(runningStockState).reduce((sum, qty) => sum + qty, 0);
 
     const movementsForDay = allMovementsSorted.filter(m => {
-      const effectiveDate = m.tipo === 'Salida' ? m.fechaEntrega : m.created_at;
-      return effectiveDate.startsWith(dateStr);
+      const effectiveDate = m.tipo === 'Salida' ? m.fechaEntrega : m.created_at.slice(0, 10);
+      return effectiveDate === dateStr;
     });
     
     let totalIn = 0;
     let totalOut = 0;
 
-    // APLICAMOS LOS MOVIMIENTOS DEL DÍA
     movementsForDay.forEach(mov => {
       (mov.items || []).forEach(item => {
         runningStockState[item.sku] = runningStockState[item.sku] || 0;
         if (mov.tipo === 'Entrada') {
           const cantidad = Number(item.cantidad || 0);
           runningStockState[item.sku] += cantidad;
-          totalIn += cantidad; // SÍ cuenta como movimiento
+          totalIn += cantidad;
         } else if (mov.tipo === 'Salida') {
           const cantidad = Number(item.cantidad || 0);
           runningStockState[item.sku] -= cantidad;
-          totalOut += cantidad; // SÍ cuenta como movimiento
+          totalOut += cantidad;
         } else if (['Ajuste', 'Recuento Manual'].includes(mov.tipo)) {
-          // Un ajuste establece el stock, pero NO se cuenta como entrada/salida física
           runningStockState[item.sku] = Number(item.cantidad_nueva ?? item.cantidad ?? 0);
         }
       });
     });
 
     const stockFinalDelDia = Object.values(runningStockState).reduce((sum, qty) => sum + qty, 0);
-    // El coste de movimiento SOLO incluye entradas y salidas reales.
     const costeMovimientoDia = (totalIn + totalOut) * COSTE_POR_MOVIMIENTO_UNITARIO;
     const costeAlmacenajeDia = stockFinalDelDia * COSTE_ALMACENAJE_DIARIO_UNITARIO;
 
@@ -137,7 +133,6 @@ async function calculateAndExport() {
 
   const costeTotalGeneral = costeTotalMovimientos + costeTotalAlmacenaje;
   
-  // --- GENERACIÓN DEL DOCUMENTO WORD ---
   try {
     const doc = new docx.Document({
       sections: [{
@@ -230,7 +225,7 @@ async function calculateAndExport() {
         <div v-for="movement in filteredMovements" :key="movement.id" class="p-4 border rounded-lg bg-white shadow-sm relative">
           <div class="flex justify-between items-start">
             <div>
-              <p class="font-bold">Fecha: <span class="font-normal">{{ movement.tipo === 'Salida' ? `${new Date(movement.created_at).toLocaleDateString('es-ES')} - ${new Date(movement.fechaEntrega).toLocaleDateString('es-ES')}` : new Date(movement.created_at).toLocaleDateString('es-ES') }}</span></p>
+              <p class="font-bold">Fecha: <span class="font-normal">{{ movement.tipo === 'Salida' ? `${new Date(movement.created_at).toLocaleDateString('es-ES')} - ${new Date(movement.fechaEntrega).toLocaleDateString('es-ES')}` : movement.tipo === 'Sin Pedido' ? `Pedido: ${new Date(movement.fechaPedido).toLocaleDateString('es-ES')} - Entrega: ${new Date(movement.fechaEntrega).toLocaleDateString('es-ES')}` : new Date(movement.created_at).toLocaleDateString('es-ES') }}</span></p>
               <p class="font-bold">Movimiento: 
                 <span :class="{'text-green-600': movement.tipo === 'Entrada', 'text-red-600': movement.tipo === 'Salida', 'text-blue-600': ['Ajuste', 'Recuento Manual'].includes(movement.tipo)}">{{ movement.tipo }}</span>
               </p>

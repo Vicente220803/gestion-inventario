@@ -1,19 +1,22 @@
 <script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { useAuth } from '../composables/useAuth';
+// Importamos directamente la función signIn de nuestro nuevo authState
+import { signIn } from '../authState';
 
 const router = useRouter();
-const { signIn } = useAuth();
-
 const email = ref('');
 const password = ref('');
+const isLoading = ref(false);
 
-// Función de login asíncrona que redirige después del login exitoso
 const handleLogin = async () => {
-  await signIn(email.value, password.value);
-  // Después del login, redirigir al dashboard
-  router.push('/');
+  isLoading.value = true;
+  const success = await signIn(email.value, password.value);
+  isLoading.value = false;
+
+  if (success) {
+    router.replace({ name: 'NewOrder' });
+  }
 };
 </script>
 
@@ -32,6 +35,7 @@ const handleLogin = async () => {
             v-model="email"
             class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
             required
+            :disabled="isLoading"
           />
         </div>
         
@@ -43,15 +47,16 @@ const handleLogin = async () => {
             v-model="password"
             class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
             required
+            :disabled="isLoading"
           />
         </div>
         
-        <!-- El botón ahora no necesita cambiar su texto. App.vue mostrará "Cargando..." -->
         <button 
           type="submit" 
-          class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400"
+          :disabled="isLoading"
         >
-          Acceder
+          {{ isLoading ? 'Accediendo...' : 'Acceder' }}
         </button>
       </form>
     </div>

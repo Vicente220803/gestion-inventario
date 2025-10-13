@@ -46,9 +46,9 @@ function confirmAction() {
 <template>
   <div v-if="show" class="fixed inset-0 bg-black bg-opacity-50 z-40 flex justify-center items-center" @click.self="$emit('close')">
     <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md z-50">
-      <h3 class="text-xl font-semibold mb-4">Confirmar Notificación</h3>
+      <h3 class="text-xl font-semibold mb-4">Seleccionar Fecha del Pedido</h3>
       <p class="mb-4 text-gray-600">
-        Selecciona la fecha de entrega para la notificación de "Sin Pedido de Traslado".
+        Selecciona la fecha del pedido para la notificación de "Sin Pedido de Traslado". Esta fecha se registrará en el historial.
       </p>
       
       <!-- 3. Reemplazamos el componente antiguo por el nuevo DatePicker -->

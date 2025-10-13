@@ -72,68 +72,73 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
-import { useAuth } from '../composables/useAuth'
-import { useToasts } from '../composables/useToasts'
-import { useNotifications } from '../composables/useNotifications'
-import { useRouter } from 'vue-router'
-import { MagnifyingGlassIcon, BellIcon, SunIcon, MoonIcon, UserCircleIcon } from '@heroicons/vue/24/outline'
+import { ref, onMounted, onUnmounted } from 'vue';
+// --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
+// Importamos 'user' y 'signOut' directamente desde nuestro estado global 'authState'.
+import { user, signOut } from '../authState';
+import { useToasts } from '../composables/useToasts';
+import { useNotifications } from '../composables/useNotifications';
+import { useRouter } from 'vue-router';
+import { MagnifyingGlassIcon, BellIcon, SunIcon, MoonIcon, UserCircleIcon } from '@heroicons/vue/24/outline';
 
-const { user, signOut } = useAuth()
-const { showSuccess } = useToasts()
-const { notifications, loading, unreadCount, loadNotifications, markAsRead, markAllAsRead } = useNotifications()
-const router = useRouter()
-const showUserMenu = ref(false)
-const showNotifications = ref(false)
-const isDark = ref(false)
+// Ya no necesitamos llamar a useAuth()
+// const { user, signOut } = useAuth() // Esta línea se elimina
+
+const { showSuccess } = useToasts();
+const { notifications, loading, unreadCount, loadNotifications, markAsRead, markAllAsRead } = useNotifications();
+const router = useRouter();
+const showUserMenu = ref(false);
+const showNotifications = ref(false);
+const isDark = ref(false);
 
 const handleSignOut = async () => {
-  await signOut()
-  router.push('/login')
-}
+  await signOut();
+  // El router se encargará de redirigir automáticamente, pero por si acaso lo forzamos.
+  router.push('/login');
+};
 
 const toggleTheme = () => {
-  console.log('Toggling theme')
-  isDark.value = !isDark.value
+  console.log('Toggling theme');
+  isDark.value = !isDark.value;
   if (isDark.value) {
-    document.documentElement.classList.add('dark')
-    localStorage.setItem('theme', 'dark')
+    document.documentElement.classList.add('dark');
+    localStorage.setItem('theme', 'dark');
   } else {
-    document.documentElement.classList.remove('dark')
-    localStorage.setItem('theme', 'light')
+    document.documentElement.classList.remove('dark');
+    localStorage.setItem('theme', 'light');
   }
-}
+};
 
 const toggleNotifications = () => {
-  showNotifications.value = !showNotifications.value
+  showNotifications.value = !showNotifications.value;
   if (showNotifications.value && notifications.value.length === 0) {
-    loadNotifications()
+    loadNotifications();
   }
-}
+};
 
 const closeNotifications = () => {
-  showNotifications.value = false
-}
+  showNotifications.value = false;
+};
 
 const handleClickOutside = (event) => {
-  const notificationsEl = event.target.closest('.notifications-dropdown')
+  const notificationsEl = event.target.closest('.notifications-dropdown');
   if (!notificationsEl) {
-    closeNotifications()
+    closeNotifications();
   }
-}
+};
 
 
 onMounted(() => {
-  const savedTheme = localStorage.getItem('theme') || 'light'
-  isDark.value = savedTheme === 'dark'
+  const savedTheme = localStorage.getItem('theme') || 'light';
+  isDark.value = savedTheme === 'dark';
   if (isDark.value) {
-    document.documentElement.classList.add('dark')
+    document.documentElement.classList.add('dark');
   }
-  loadNotifications()
-  document.addEventListener('click', handleClickOutside)
-})
+  loadNotifications();
+  document.addEventListener('click', handleClickOutside);
+});
 
 onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
-})
+  document.removeEventListener('click', handleClickOutside);
+});
 </script>

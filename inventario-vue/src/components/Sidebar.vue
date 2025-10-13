@@ -19,27 +19,33 @@
 </template>
 
 <script setup>
-import { HomeIcon, CubeIcon, ClockIcon, CogIcon, PlusIcon } from '@heroicons/vue/24/outline'
-import { computed } from 'vue'
-import { useAuth } from '../composables/useAuth'
+import { HomeIcon, CubeIcon, ClockIcon, CogIcon, PlusIcon } from '@heroicons/vue/24/outline';
+import { computed } from 'vue';
+// --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
+// Importamos 'profile' directamente desde nuestro estado global 'authState'.
+import { profile } from '../authState';
 
-const { profile } = useAuth()
+// Ya no necesitamos llamar a useAuth()
+// const { profile } = useAuth() // Esta línea se elimina
 
 const allNavigation = [
   { name: 'Stock', path: '/stock', icon: CubeIcon },
   { name: 'Historial', path: '/historial', icon: ClockIcon },
-  { name: 'Entradas', path: '/incomings', icon: PlusIcon },
-  { name: 'Nuevo Pedido', path: '/new-order', icon: PlusIcon },
-  { name: 'Materiales', path: '/settings', icon: CogIcon },
-]
+  { name: 'Entradas', path: '/incomings', icon: PlusIcon, roles: ['admin'] }, // <-- Mejora: Añadimos roles aquí
+  { name: 'Nuevo Pedido', path: '/new-order', icon: PlusIcon, roles: ['admin', 'operario'] },
+  { name: 'Materiales', path: '/settings', icon: CogIcon, roles: ['admin'] },
+];
 
 const navigation = computed(() => {
-  const userRole = profile.value?.role
-  if (userRole === 'admin') {
-    return allNavigation
-  } else if (userRole === 'operario') {
-    return allNavigation.filter(item => ['/stock', '/new-order', '/historial'].includes(item.path))
-  }
-  return []
-})
+  const userRole = profile.value?.role;
+  if (!userRole) return []; // Si no hay rol, no mostramos nada.
+
+  // Filtramos la navegación basándonos en los roles definidos en cada objeto.
+  return allNavigation.filter(item => {
+    // Si un item de navegación no tiene 'roles', se muestra a todo el mundo.
+    if (!item.roles) return true; 
+    // Si tiene 'roles', comprobamos si el rol del usuario está incluido.
+    return item.roles.includes(userRole);
+  });
+});
 </script>

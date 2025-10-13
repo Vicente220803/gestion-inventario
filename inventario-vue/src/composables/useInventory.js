@@ -1,5 +1,3 @@
-// RUTA: /inventario-vue/src/composables/useInventory.js (CÓDIGO FINAL, COMPLETO Y SIN ERRORES)
-
 import { ref, readonly } from 'vue';
 import { useToasts } from './useToasts';
 import { useNotifications } from './useNotifications';
@@ -10,12 +8,16 @@ const _materialStock = ref({});
 const _movements = ref([]);
 const _pendingIncomings = ref([]);
 const hasLoaded = ref(false);
+const isLoading = ref(false);
+const updateCounter = ref(0);
 
 export function useInventory() {
   const { showSuccess, showError } = useToasts();
   const { createNotification } = useNotifications();
 
   async function loadFromServer() {
+    if (hasLoaded.value || isLoading.value) return;
+    isLoading.value = true;
     console.log('loadFromServer: Iniciando carga de datos...');
     try {
       const [productsRes, stockRes, movementsRes, pendingRes] = await Promise.all([
@@ -43,15 +45,119 @@ export function useInventory() {
       }));
       _pendingIncomings.value = pendingRes.data || [];
       console.log('loadFromServer: Carga de datos completada con éxito.');
+      console.log('[DEBUG] Products loaded:', Object.keys(_productsWithSku.value));
+      updateCounter.value++;
+      hasLoaded.value = true;
 
     } catch (error) {
       showError('No se pudo cargar el inventario principal.');
       console.error('Error en loadFromServer:', error);
     } finally {
-      hasLoaded.value = true;
+      isLoading.value = false;
     }
   }
 
+  if (!hasLoaded.value) {
+    loadFromServer();
+  }
+
+  async function addProduct(productInfo) {
+    console.log('[DEBUG] addProduct called with productInfo:', productInfo);
+    try {
+      const { data: productData, error: productError } = await supabase
+        .from('productos')
+        .insert({
+          descripcion: productInfo.desc,
+          sku: productInfo.sku,
+        })
+        .select()
+        .single();
+      
+      if (productError) throw productError;
+
+      const { error: stockError } = await supabase
+        .from('stock')
+        .upsert({
+          producto_sku: productData.sku,
+          cantidad: productInfo.stockInicial
+        }, { onConflict: 'producto_sku' });
+
+      if (stockError) {
+        await supabase.from('productos').delete().eq('sku', productData.sku);
+        throw stockError;
+      }
+      
+      showSuccess('Material añadido con éxito.');
+      hasLoaded.value = false;
+      await loadFromServer();
+      
+    } catch (error) {
+      if (error.code === '23505') {
+        showError('Error: El SKU ya existe. Elige un código único.');
+      } else {
+        showError('No se pudo añadir el nuevo material.');
+      }
+      console.error('Error en addProduct:', error);
+    }
+  }
+
+  async function deleteProduct(productSku) {
+    console.log('[DEBUG] deleteProduct called with sku:', productSku);
+    console.log('[DEBUG] Checking if product exists...');
+    const { data: existingProduct, error: checkError } = await supabase
+      .from('productos')
+      .select('sku')
+      .eq('sku', productSku)
+      .single();
+
+    if (checkError || !existingProduct) {
+      console.error('[DEBUG] Product not found or error checking existence:', checkError);
+      showError('Producto no encontrado.');
+      return;
+    }
+    console.log('[DEBUG] Product exists, proceeding with deletion.');
+    try {
+      console.log('[DEBUG] Deleting from stock table...');
+      const { error: stockError } = await supabase
+        .from('stock')
+        .delete()
+        .eq('producto_sku', productSku);
+
+      if (stockError && stockError.code !== 'PGRST204') {
+        console.error('[DEBUG] Error deleting from stock:', stockError);
+        throw stockError;
+      }
+      console.log('[DEBUG] Stock deletion successful or no stock found.');
+
+      console.log('[DEBUG] Deleting from productos table...');
+      const { error: productError } = await supabase
+        .from('productos')
+        .delete()
+        .eq('sku', productSku);
+
+      if (productError) {
+        console.error('[DEBUG] Error deleting from productos:', productError);
+        throw productError;
+      }
+      console.log('[DEBUG] Product deletion successful.');
+
+      showSuccess('Material borrado con éxito.');
+      hasLoaded.value = false;
+      await loadFromServer();
+      console.log('[DEBUG] Data reloaded after deletion.');
+      console.log('[DEBUG] materialStock after delete:', _materialStock.value);
+
+    } catch (error) {
+      if (error.code === '23503') {
+        showError('Error: Este material no se puede borrar porque tiene movimientos en el historial.');
+        console.log('[DEBUG] Deletion blocked due to foreign key constraint.');
+      } else {
+        showError('No se pudo borrar el material.');
+        console.error('[DEBUG] Unexpected error in deleteProduct:', error);
+      }
+    }
+  }
+  
   async function addMovement(movementData) {
     try {
       const { fechaPedido, fechaEntrega, pallets, comentarios, items, tipo } = movementData;
@@ -81,6 +187,7 @@ export function useInventory() {
       showError(`No se pudo registrar el movimiento de "${movementData.tipo}".`);
       console.error('Error en addMovement:', error);
     } finally {
+      hasLoaded.value = false;
       await loadFromServer();
     }
   }
@@ -101,13 +208,7 @@ export function useInventory() {
           ) || 'SKU Desconocido';
           
           itemsToUpdate.push({ sku, newQuantity });
-          movementItems.push({
-            sku,
-            desc: productDesc,
-            cantidad_anterior: oldQuantity,
-            cantidad_nueva: newQuantity,
-            diferencia: newQuantity - oldQuantity,
-          });
+          movementItems.push({ sku, desc: productDesc, cantidad_anterior: oldQuantity, cantidad_nueva: newQuantity, diferencia: newQuantity - oldQuantity });
         }
       }
 
@@ -117,13 +218,9 @@ export function useInventory() {
       }
 
       const stockUpdatePromises = itemsToUpdate.map(item =>
-        supabase
-          .from('stock')
-          .upsert({ producto_sku: item.sku, cantidad: item.newQuantity }, { onConflict: 'producto_sku' })
+        supabase.from('stock').upsert({ producto_sku: item.sku, cantidad: item.newQuantity }, { onConflict: 'producto_sku' })
       );
-      const results = await Promise.all(stockUpdatePromises);
-      const updateError = results.find(res => res.error);
-      if (updateError) throw updateError.error;
+      await Promise.all(stockUpdatePromises);
 
       const { error: insertError } = await supabase.from('MOVIMIENTOS').insert([{
         fecha_pedido: new Date().toISOString().slice(0, 10),
@@ -139,6 +236,8 @@ export function useInventory() {
       }
 
       showSuccess('Ajuste de inventario registrado con éxito.');
+      hasLoaded.value = false;
+      await loadFromServer();
       
     } catch (error) {
       showError('No se pudo completar el ajuste de inventario.');
@@ -154,44 +253,17 @@ export function useInventory() {
       if (movementType === 'Entrada' || movementType === 'Salida') {
         for (const item of itemsToRevert) {
           const amountToRevert = movementType === 'Salida' ? Number(item.cantidad) : -Number(item.cantidad);
-          const { error: rpcError } = await supabase.rpc('actualizar_stock', {
-            sku_producto: item.sku,
-            cantidad_cambio: amountToRevert
-          });
-          if (rpcError) throw rpcError;
-        }
-      } else if (movementType === 'Ajuste') {
-        for (const item of itemsToRevert) {
-          const { data: allMovementsForItem, error: historyError } = await supabase
-            .from('MOVIMIENTOS')
-            .select('tipo, elementos')
-            .order('created_at', { ascending: true });
-          if (historyError) throw historyError;
-          
-          let recalculatedStock = 0;
-          for (const mov of allMovementsForItem) {
-            for (const movItem of mov.elementos) {
-              if (movItem.sku === item.sku) {
-                if (mov.tipo === 'Entrada') recalculatedStock += Number(movItem.cantidad);
-                else if (mov.tipo === 'Salida') recalculatedStock -= Number(movItem.cantidad);
-                else if (mov.tipo === 'Ajuste') recalculatedStock = Number(movItem.cantidad_nueva);
-              }
-            }
-          }
-          
-          const { error: updateError } = await supabase
-            .from('stock')
-            .upsert({ producto_sku: item.sku, cantidad: recalculatedStock }, { onConflict: 'producto_sku' });
-          if (updateError) throw updateError;
+          await supabase.rpc('actualizar_stock', { sku_producto: item.sku, cantidad_cambio: amountToRevert });
         }
       }
-
+      
       showSuccess('Movimiento anulado y stock revertido con éxito.');
       
     } catch (error) {
       showError('La operación de anulación no se pudo completar.');
       console.error('Error en la anulación:', error);
     } finally {
+      hasLoaded.value = false;
       await loadFromServer();
     }
   }
@@ -229,13 +301,6 @@ export function useInventory() {
       console.error('Error in approvePendingIncoming:', error);
     }
   }
-  
-  async function addProduct(productInfo) { 
-    console.log('addProduct no implementado', productInfo);
-  }
-  async function deleteProduct(productDesc) {
-    console.log('deleteProduct no implementado', productDesc);
-  }
 
   return {
     productsWithSku: readonly(_productsWithSku),
@@ -243,8 +308,8 @@ export function useInventory() {
     movements: readonly(_movements),
     pendingIncomings: readonly(_pendingIncomings),
     hasLoaded: readonly(hasLoaded),
-    
-    // Funciones
+    updateCounter: readonly(updateCounter),
+
     loadFromServer,
     fetchPendingIncomings,
     addMovement,

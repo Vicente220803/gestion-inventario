@@ -17,26 +17,7 @@
 </template>
 
 <script setup>
-import Sidebar from './Sidebar.vue'
-import Header from './Header.vue'
-import { useAuth } from '../composables/useAuth'
-import { useInventory } from '../composables/useInventory'
-import { watch, onMounted } from 'vue'
-
-const { user, profile, checkSession } = useAuth()
-const { loadFromServer, fetchPendingIncomings } = useInventory()
-
-// Load data when component mounts
-watch(profile, (newProfile, oldProfile) => {
-  if (newProfile && !oldProfile) {
-    loadFromServer()
-    fetchPendingIncomings()
-  }
-}, { immediate: true })
-
-onMounted(() => {
-  if (!user.value) {
-    checkSession()
-  }
-})
+import Sidebar from './Sidebar.vue';
+import Header from './Header.vue';
+// Ya no necesitamos nada más aquí.
 </script>

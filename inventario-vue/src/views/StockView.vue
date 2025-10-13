@@ -1,9 +1,8 @@
-<!-- RUTA: /inventario-vue/src/views/StockView.vue (CORREGIDO) -->
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useInventory } from '../composables/useInventory';
 import { useConfirm } from '../composables/useConfirm';
-import { useAuth } from '../composables/useAuth';
+import { profile } from '../authState'; // <-- CORRECCIÓN: Importamos desde authState
 import { MagnifyingGlassIcon, FunnelIcon } from '@heroicons/vue/24/outline';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -12,10 +11,11 @@ const {
   materialStock,
   productsWithSku,
   recordManualInventoryCount,
-  loadFromServer
+  loadFromServer,
+  updateCounter
 } = useInventory();
 const { showConfirm } = useConfirm();
-const { profile } = useAuth();
+// const { profile } = useAuth(); // <-- LÍNEA ELIMINADA
 
 const isModalVisible = ref(false);
 const editedStock = ref({});
@@ -44,9 +44,7 @@ const allItems = computed(() => {
 });
 
 const filteredItems = computed(() => {
-  console.log('Computing filteredItems, materialStock:', materialStock.value);
   let items = allItems.value;
-  console.log('Filtered items:', items);
 
   // Filter by search
   if (searchQuery.value) {
@@ -67,7 +65,11 @@ const filteredItems = computed(() => {
 });
 
 const totalPallets = computed(() => {
-  return Object.values(materialStock.value).reduce((sum, qty) => sum + (qty || 0), 0);
+  // Depend on updateCounter to force re-evaluation
+  updateCounter.value;
+  const sum = Object.values(materialStock.value).reduce((sum, qty) => sum + (Number(qty) || 0), 0);
+  console.log('[DEBUG] totalPallets calculated:', sum, 'materialStock:', materialStock.value);
+  return sum;
 });
 
 function openAdjustmentModal() {
@@ -82,9 +84,7 @@ function openAdjustmentModal() {
   isModalVisible.value = true;
 }
 
-// === FUNCIÓN CORREGIDA ===
 function handleSaveStock() {
-  console.log('handleSaveStock called');
   if (!adjustmentReason.value.trim()) {
     alert('El motivo del ajuste es obligatorio.');
     return;
@@ -93,17 +93,9 @@ function handleSaveStock() {
   showConfirm(
     'Confirmar Ajuste de Inventario',
     '¿Estás seguro de que quieres guardar este recuento? La acción se registrará en el historial y no se puede deshacer.',
-    // 1. Convertimos la función de callback a 'async' para poder usar 'await'
     async () => {
-      console.log('Confirm callback executed');
-      
-      // 2. Usamos 'await' para esperar a que la función de guardado TERMINE
       await recordManualInventoryCount(editedStock.value, adjustmentReason.value);
-      
-      // 3. Una vez terminado el guardado, volvemos a cargar los datos del servidor
       await loadFromServer();
-
-      // 4. Solo cerramos el modal cuando todo ha terminado con éxito
       isModalVisible.value = false;
     }
   );
@@ -134,10 +126,6 @@ function generatePDF() {
 
   doc.save('inventario.pdf');
 }
-
-onMounted(() => {
-  loadFromServer();
-});
 </script>
 
 <template>

@@ -11,7 +11,7 @@ const { addProduct, productsWithSku, deleteProduct } = useInventory();
 const newProduct = ref({
   desc: '',
   sku: '',
-  initialStock: 0
+  stockInicial: 0
 });
 
 function handleAddProduct() {
@@ -20,19 +20,24 @@ function handleAddProduct() {
     showError('La descripción y el SKU son obligatorios.');
     return;
   }
-  
+
+  console.log('[DEBUG] handleAddProduct: newProduct.value:', newProduct.value);
   // La función addProduct ya tiene su propio alert, vamos a cambiarlo también en useInventory.js
   // Por ahora, vamos a modificar la llamada para que muestre el toast desde aquí.
   // (En un paso posterior, moveremos el toast dentro de la propia función addProduct)
-  addProduct(newProduct.value); 
-  
-  newProduct.value = { desc: '', sku: '', initialStock: 0 };
+  addProduct(newProduct.value);
+
+  newProduct.value = { desc: '', sku: '', stockInicial: 0 };
 }
 
-function handleDeleteProduct(productDesc) {
+function handleDeleteProduct(productSku, productDesc) {
+  console.log('[DEBUG] handleDeleteProduct called with sku:', productSku, 'desc:', productDesc);
   // El 'confirm' lo cambiaremos en la Parte B. Por ahora lo dejamos.
   if (confirm(`¿Estás seguro de que quieres borrar el material "${productDesc}"? Esta acción no se puede deshacer.`)) {
-    deleteProduct(productDesc);
+    console.log('[DEBUG] User confirmed deletion, calling deleteProduct');
+    deleteProduct(productSku);
+  } else {
+    console.log('[DEBUG] User cancelled deletion');
   }
 }
 </script>
@@ -55,7 +60,7 @@ function handleDeleteProduct(productDesc) {
         </div>
         <div class="md:col-span-2">
           <label for="initialStock" class="block text-sm font-medium text-gray-700">Stock Inicial</label>
-          <input type="number" id="initialStock" v-model="newProduct.initialStock" min="0" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 border">
+          <input type="number" id="initialStock" v-model="newProduct.stockInicial" min="0" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 border">
         </div>
       </div>
       <div class="flex justify-end mt-6">
@@ -78,8 +83,8 @@ function handleDeleteProduct(productDesc) {
             <p class="font-medium text-gray-800">{{ desc }}</p>
             <p class="text-xs text-gray-500">SKU: {{ product.sku }}</p>
           </div>
-          <button 
-            @click="handleDeleteProduct(desc)"
+          <button
+            @click="handleDeleteProduct(product.sku, desc)"
             class="px-3 py-1 text-xs font-medium text-red-700 bg-red-100 rounded-md hover:bg-red-200"
             title="Borrar este material"
           >
