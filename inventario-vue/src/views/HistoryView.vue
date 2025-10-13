@@ -6,7 +6,7 @@ import { profile } from '../authState'; // <-- CORRECCIÓN: Importamos desde aut
 import * as docx from 'docx';
 import { saveAs } from 'file-saver';
 
-const { movements, productsWithSku, deleteMovement } = useInventory();
+const { movements, productsWithSku, materialStock, deleteMovement } = useInventory();
 const { showConfirm } = useConfirm();
 // const { profile } = useAuth(); // <-- LÍNEA ELIMINADA
 
@@ -87,7 +87,7 @@ async function calculateAndExport() {
     const stockInicialDelDia = Object.values(runningStockState).reduce((sum, qty) => sum + qty, 0);
 
     const movementsForDay = allMovementsSorted.filter(m => {
-      const effectiveDate = m.tipo === 'Salida' ? m.fechaEntrega : m.created_at.slice(0, 10);
+      const effectiveDate = m.created_at.slice(0, 10);
       return effectiveDate === dateStr;
     });
     
@@ -108,10 +108,16 @@ async function calculateAndExport() {
         } else if (['Ajuste', 'Recuento Manual'].includes(mov.tipo)) {
           runningStockState[item.sku] = Number(item.cantidad_nueva ?? item.cantidad ?? 0);
         }
+        // "Sin Pedido" no afecta el stock físico, así que no se cuenta en totalIn/totalOut
       });
     });
 
-    const stockFinalDelDia = Object.values(runningStockState).reduce((sum, qty) => sum + qty, 0);
+    let stockFinalDelDia = Object.values(runningStockState).reduce((sum, qty) => sum + qty, 0);
+
+    // Si este es el último día del período y es hoy, forzar que coincida con el stock actual
+    if (currentDate.toDateString() === new Date().toDateString() && currentDate.toDateString() === rangeEndDate.toDateString()) {
+      stockFinalDelDia = Object.values(materialStock.value).reduce((sum, qty) => sum + Number(qty || 0), 0);
+    }
     const costeMovimientoDia = (totalIn + totalOut) * COSTE_POR_MOVIMIENTO_UNITARIO;
     const costeAlmacenajeDia = stockFinalDelDia * COSTE_ALMACENAJE_DIARIO_UNITARIO;
 
