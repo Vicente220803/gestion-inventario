@@ -6,12 +6,19 @@ import { profile } from '../authState'; // <-- CORRECCIÓN: Importamos desde aut
 import * as docx from 'docx';
 import { saveAs } from 'file-saver';
 
-const { movements, productsWithSku, materialStock, deleteMovement } = useInventory();
+const { movements, productsWithSku, materialStock, deleteMovement, addMovement } = useInventory();
 const { showConfirm } = useConfirm();
 // const { profile } = useAuth(); // <-- LÍNEA ELIMINADA
 
 const startDate = ref('');
 const endDate = ref('');
+
+// Estado para el modal de edición
+const isEditModalVisible = ref(false);
+const editingMovement = ref(null);
+const editedItems = ref([]);
+const editedFechaEntrega = ref('');
+const editedComentarios = ref('');
 
 const filteredMovements = computed(() => {
   let movs = movements.value;
@@ -37,6 +44,104 @@ function handleDelete(movement) {
       deleteMovement(movement.id, movement.tipo, movement.items);
     }
   );
+}
+
+function canEditMovement(movement) {
+  if (movement.tipo !== 'Salida' || profile?.value?.role !== 'admin') return false;
+  const movementDate = new Date(movement.created_at);
+  const now = new Date();
+  const diffTime = Math.abs(now - movementDate);
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays <= 5;
+}
+
+function handleEdit(movement) {
+  editingMovement.value = movement;
+  editedItems.value = JSON.parse(JSON.stringify(movement.items));
+  editedFechaEntrega.value = movement.fechaEntrega;
+  editedComentarios.value = movement.comentarios || '';
+  isEditModalVisible.value = true;
+}
+
+async function handleSaveEdit() {
+  if (!editingMovement.value) return;
+
+  // Validar stock disponible considerando cambios de material
+  const stockChanges = {};
+
+  for (const item of editedItems.value) {
+    const newQuantity = Number(item.cantidad);
+    if (newQuantity < 0) {
+      alert(`La cantidad no puede ser negativa para ${item.desc}`);
+      return;
+    }
+
+    // Inicializar cambios para este SKU
+    if (!stockChanges[item.sku]) {
+      stockChanges[item.sku] = 0;
+    }
+
+    // Sumar cantidad nueva
+    stockChanges[item.sku] += newQuantity;
+  }
+
+  // Restar cantidades originales
+  for (const originalItem of editingMovement.value.items) {
+    const sku = originalItem.sku;
+    if (!stockChanges[sku]) {
+      stockChanges[sku] = 0;
+    }
+    stockChanges[sku] -= Number(originalItem.cantidad);
+  }
+
+  // Validar que no haya stock negativo después de los cambios
+  for (const sku in stockChanges) {
+    const currentStock = materialStock.value[sku] || 0;
+    const netChange = stockChanges[sku];
+    if (currentStock + netChange < 0) {
+      const productDesc = Object.keys(productsWithSku.value).find(desc => productsWithSku.value[desc].sku === sku) || sku;
+      alert(`Stock insuficiente para ${productDesc}. Disponible: ${currentStock}, Cambio neto: ${netChange}`);
+      return;
+    }
+  }
+
+  // Revertir el movimiento original
+  await deleteMovement(editingMovement.value.id, editingMovement.value.tipo, editingMovement.value.items);
+
+  // Crear el nuevo movimiento
+  const newMovementData = {
+    fechaPedido: editingMovement.value.fechaPedido,
+    fechaEntrega: editedFechaEntrega.value,
+    pallets: editedItems.value.reduce((sum, item) => sum + Number(item.cantidad), 0),
+    comentarios: editedComentarios.value || editingMovement.value.comentarios,
+    items: editedItems.value,
+    tipo: 'Salida',
+  };
+
+  await addMovement(newMovementData);
+
+  isEditModalVisible.value = false;
+  editingMovement.value = null;
+}
+
+function addNewItem() {
+  const newItem = { sku: '', desc: '', cantidad: 1 };
+  editedItems.value.push(newItem);
+}
+
+function removeItem(index) {
+  if (editedItems.value.length > 1) {
+    editedItems.value.splice(index, 1);
+  }
+}
+
+function updateItemSku(item) {
+  const productData = productsWithSku.value[item.desc];
+  if (productData) {
+    item.sku = productData.sku;
+  } else {
+    item.sku = '';
+  }
 }
 
 // ==============================================================================
@@ -251,14 +356,95 @@ async function calculateAndExport() {
               </div>
               <p v-if="movement.comentarios" class="mt-2 font-bold">Comentarios: <span class="font-normal italic">{{ movement.comentarios }}</span></p>
             </div>
-            <button v-if="profile?.role === 'admin'" @click="handleDelete(movement)" class="absolute top-4 right-4 bg-red-100 text-red-700 text-xs font-bold py-1 px-3 rounded-full hover:bg-red-200">
-              Anular
-            </button>
+            <div class="absolute top-4 right-4 flex space-x-2">
+              <button v-if="canEditMovement(movement)" @click="handleEdit(movement)" class="bg-blue-100 text-blue-700 text-xs font-bold py-1 px-3 rounded-full hover:bg-blue-200">
+                Editar
+              </button>
+              <button v-if="profile?.role === 'admin'" @click="handleDelete(movement)" class="bg-red-100 text-red-700 text-xs font-bold py-1 px-3 rounded-full hover:bg-red-200">
+                Anular
+              </button>
+            </div>
           </div>
         </div>
       </div>
       <div v-else class="p-4 text-center bg-gray-50 rounded-lg">
         <p class="text-gray-500">No se encontraron movimientos para el rango de fechas seleccionado.</p>
+      </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div v-if="isEditModalVisible" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+      <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-white">Editar Movimiento de Salida</h3>
+
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Fecha de Entrega</label>
+            <input
+              type="date"
+              v-model="editedFechaEntrega"
+              class="mt-1 block w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            >
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Comentarios</label>
+            <textarea
+              v-model="editedComentarios"
+              rows="3"
+              placeholder="Comentarios sobre la modificación..."
+              class="mt-1 block w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            ></textarea>
+          </div>
+
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <h4 class="font-semibold text-gray-900 dark:text-white">Artículos</h4>
+              <button @click="addNewItem" class="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700">+ Añadir Artículo</button>
+            </div>
+            <div class="space-y-2 max-h-60 overflow-y-auto pr-2">
+              <div v-for="(item, index) in editedItems" :key="index" class="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700 rounded">
+                <div class="flex-1">
+                  <input
+                    type="text"
+                    list="edit-products"
+                    v-model="item.desc"
+                    @input="updateItemSku(item)"
+                    placeholder="Seleccionar material..."
+                    class="w-full p-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-600 text-gray-900 dark:text-white"
+                  >
+                  <span class="text-xs text-gray-500 block mt-1">SKU: {{ item.sku }}</span>
+                </div>
+                <input
+                  type="number"
+                  v-model.number="item.cantidad"
+                  min="0"
+                  placeholder="Cant."
+                  class="w-20 p-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-600 text-gray-900 dark:text-white"
+                >
+                <button v-if="editedItems.length > 1" @click="removeItem(index)" class="bg-red-500 text-white px-3 py-2 rounded hover:bg-red-600 text-sm">×</button>
+              </div>
+            </div>
+            <datalist id="edit-products">
+              <option v-for="desc in Object.keys(productsWithSku)" :key="desc" :value="desc"></option>
+            </datalist>
+          </div>
+        </div>
+
+        <div class="mt-6 flex justify-end space-x-4">
+          <button
+            @click="isEditModalVisible = false"
+            class="bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            @click="handleSaveEdit"
+            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Guardar Cambios
+          </button>
+        </div>
       </div>
     </div>
   </div>

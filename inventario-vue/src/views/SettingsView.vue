@@ -3,9 +3,11 @@
 import { ref } from 'vue';
 import { useInventory } from '../composables/useInventory';
 import { useToasts } from '../composables/useToasts'; // <-- 1. IMPORTAMOS EL AYUDANTE
+import { useConfirm } from '../composables/useConfirm'; // <-- Importamos useConfirm
 
 // 2. PREPARAMOS LAS FUNCIONES DE NOTIFICACIÓN PARA USARLAS
-const { showSuccess, showError } = useToasts(); 
+const { showSuccess, showError } = useToasts();
+const { showConfirm } = useConfirm(); // <-- Inicializamos useConfirm
 const { addProduct, productsWithSku, deleteProduct } = useInventory();
 
 const newProduct = ref({
@@ -32,13 +34,15 @@ function handleAddProduct() {
 
 function handleDeleteProduct(productSku, productDesc) {
   console.log('[DEBUG] handleDeleteProduct called with sku:', productSku, 'desc:', productDesc);
-  // El 'confirm' lo cambiaremos en la Parte B. Por ahora lo dejamos.
-  if (confirm(`¿Estás seguro de que quieres borrar el material "${productDesc}"? Esta acción no se puede deshacer.`)) {
-    console.log('[DEBUG] User confirmed deletion, calling deleteProduct');
-    deleteProduct(productSku);
-  } else {
-    console.log('[DEBUG] User cancelled deletion');
-  }
+  // Usar el modal de confirmación personalizado en lugar de confirm()
+  showConfirm(
+    'Eliminar Material',
+    `¿Estás seguro de que quieres eliminar el material "${productDesc}"? Esta acción eliminará permanentemente el material y reducirá el stock total. No se puede deshacer.`,
+    () => {
+      console.log('[DEBUG] User confirmed deletion, calling deleteProduct');
+      deleteProduct(productSku);
+    }
+  );
 }
 </script>
 

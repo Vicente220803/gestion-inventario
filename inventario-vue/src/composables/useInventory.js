@@ -106,7 +106,7 @@ export function useInventory() {
     console.log('[DEBUG] Checking if product exists...');
     const { data: existingProduct, error: checkError } = await supabase
       .from('productos')
-      .select('sku')
+      .select('sku, descripcion')
       .eq('sku', productSku)
       .single();
 
@@ -116,6 +116,16 @@ export function useInventory() {
       return;
     }
     console.log('[DEBUG] Product exists, proceeding with deletion.');
+
+    // Obtener la cantidad actual de stock antes de borrar
+    const { data: stockData, error: stockCheckError } = await supabase
+      .from('stock')
+      .select('cantidad')
+      .eq('producto_sku', productSku)
+      .single();
+
+    const currentStock = stockData ? Number(stockData.cantidad) : 0;
+
     try {
       console.log('[DEBUG] Deleting from stock table...');
       const { error: stockError } = await supabase
@@ -141,6 +151,20 @@ export function useInventory() {
       }
       console.log('[DEBUG] Product deletion successful.');
 
+      // Registrar movimiento de eliminación si había stock
+      if (currentStock > 0) {
+        const deleteMovementData = {
+          fechaPedido: new Date().toISOString().slice(0, 10),
+          fechaEntrega: new Date().toISOString().slice(0, 10),
+          pallets: currentStock,
+          comentarios: `Eliminación de producto: ${existingProduct.descripcion} (SKU: ${productSku})`,
+          items: [{ sku: productSku, desc: existingProduct.descripcion, cantidad: currentStock }],
+          tipo: 'Eliminación',
+        };
+        await addMovement(deleteMovementData);
+        console.log('[DEBUG] Deletion movement registered.');
+      }
+
       showSuccess('Material borrado con éxito.');
       hasLoaded.value = false;
       await loadFromServer();
@@ -161,7 +185,7 @@ export function useInventory() {
   async function addMovement(movementData) {
     try {
       const { fechaPedido, fechaEntrega, pallets, comentarios, items, tipo } = movementData;
-      
+
       const { error: insertError } = await supabase.from('MOVIMIENTOS').insert([{
         fecha_pedido: fechaPedido,
         fecha_entrega: fechaEntrega,
@@ -172,17 +196,21 @@ export function useInventory() {
       }]);
       if (insertError) throw insertError;
 
-      for (const item of items) {
-        const amountChange = tipo === 'Salida' ? -Number(item.cantidad) : Number(item.cantidad);
-        const { error: rpcError } = await supabase.rpc('actualizar_stock', {
-            sku_producto: item.sku,
-            cantidad_cambio: amountChange
-        });
-        if (rpcError) throw rpcError;
+      // Solo actualizar stock para tipos que afectan inventario físico
+      if (tipo !== 'Eliminación') {
+        for (const item of items) {
+          const amountChange = tipo === 'Salida' ? -Number(item.cantidad) : Number(item.cantidad);
+          const { error: rpcError } = await supabase.rpc('actualizar_stock', {
+              sku_producto: item.sku,
+              cantidad_cambio: amountChange
+          });
+          if (rpcError) throw rpcError;
+        }
       }
-      
-      showSuccess(`Movimiento de "${tipo}" registrado con éxito.`);
-      
+
+      // No mostrar notificación de éxito para evitar spam
+      // showSuccess(`Movimiento de "${tipo}" registrado con éxito.`);
+
     } catch (error) {
       showError(`No se pudo registrar el movimiento de "${movementData.tipo}".`);
       console.error('Error en addMovement:', error);
@@ -256,9 +284,10 @@ export function useInventory() {
           await supabase.rpc('actualizar_stock', { sku_producto: item.sku, cantidad_cambio: amountToRevert });
         }
       }
-      
-      showSuccess('Movimiento anulado y stock revertido con éxito.');
-      
+
+      // No mostrar notificación de éxito para evitar spam
+      // showSuccess('Movimiento anulado y stock revertido con éxito.');
+
     } catch (error) {
       showError('La operación de anulación no se pudo completar.');
       console.error('Error en la anulación:', error);
