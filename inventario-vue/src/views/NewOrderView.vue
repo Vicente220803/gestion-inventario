@@ -1,4 +1,3 @@
-<!-- RUTA: /inventario-vue/src/views/NewOrderView.vue -->
 <script setup>
 // --- 1. IMPORTACIONES ---
 import { ref, computed, watch } from 'vue';
@@ -77,8 +76,33 @@ async function submitOrder() {
     }
   }
   isSending.value = true;
+  
+  // Ya no necesitamos la URL base aquí, la eliminamos.
+  
+  let itemsHtml = '<table style="width: 100%; border-collapse: collapse;">';
+  
+  for (const item of validItems) {
+    // =================== INICIO: CAMBIO CLAVE ===================
+    // Como item.url_imagen ya es la URL completa, la usamos directamente.
+    const imageUrl = item.url_imagen || '';
+    // =================== FIN: CAMBIO CLAVE ===================
+
+    itemsHtml += `
+      <tr style="border-bottom: 1px solid #dddddd;">
+        <td style="padding: 10px; text-align: left;">
+          ${imageUrl ? `<img src="${imageUrl}" alt="Imagen del producto" width="70" style="display: block; border-radius: 8px;">` : ''}
+        </td>
+        <td style="padding: 10px; vertical-align: middle; font-family: Arial, sans-serif; font-size: 14px;">
+          ${item.cantidad} x ${item.desc} (SKU: ${item.sku})
+        </td>
+      </tr>
+    `;
+  }
+  
+  itemsHtml += '</table>';
+
   const totalPallets = validItems.reduce((sum, item) => sum + Number(item.cantidad), 0);
-  const itemsHtml = `<ul>` + validItems.map(item => `<li>${item.cantidad} x ${item.desc} (SKU: ${item.sku})</li>`).join('') + `</ul>`;
+  
   const templateParams = {
     fecha_pedido: fechaPedido.value,
     fecha_entrega: fechaEntrega.value,
@@ -86,6 +110,7 @@ async function submitOrder() {
     total_pallets: totalPallets,
     comentarios: comentarios.value || 'Sin comentarios.',
   };
+
   try {
     await emailjs.send(
       import.meta.env.VITE_EMAILJS_SERVICE_ID, 
@@ -114,28 +139,19 @@ async function submitOrder() {
 }
 
 // --- 7. NUEVA LÓGICA PARA LA NOTIFICACIÓN "SIN PEDIDO" ---
-
-// Esta función ahora solo abre nuestro modal personalizado
 function sendNoOrderNotification() {
   if (!fechaEntrega.value) {
     showError('Por favor, selecciona una "Fecha de Entrega Deseada" antes de notificar.');
     return;
   }
-  // Pasamos la fecha actual del formulario al modal y lo hacemos visible
   dateForModal.value = fechaEntrega.value;
   isConfirmModalVisible.value = true;
 }
-
-// Esta nueva función maneja el envío del correo DESPUÉS de confirmar en el modal
 async function handleNotificationConfirm(modifiedDate) {
   console.log('[DEBUG] handleNotificationConfirm called with modifiedDate:', modifiedDate);
-  // Cerramos el modal
   isConfirmModalVisible.value = false;
   isSending.value = true;
-
-  // Usamos la fecha que recibimos del modal (modificada o no)
   const templateParams = { fecha_entrega: modifiedDate };
-
   try {
     await emailjs.send(
       import.meta.env.VITE_EMAILJS_SERVICE_ID,
@@ -144,19 +160,17 @@ async function handleNotificationConfirm(modifiedDate) {
       import.meta.env.VITE_EMAILJS_PUBLIC_KEY
     );
     console.log('[DEBUG] Email sent successfully, now registering movement...');
-    const registrationDate = new Date().toISOString().slice(0, 10); // Fecha de registro (hoy)
+    const registrationDate = new Date().toISOString().slice(0, 10);
     console.log('[DEBUG] Registration date:', registrationDate, 'Order date (from form):', fechaPedido.value, 'Delivery date (from modal):', modifiedDate);
-    // Registrar el movimiento en el historial
     await addMovement({
-      fechaPedido: fechaPedido.value, // Fecha del pedido del formulario
-      fechaEntrega: modifiedDate, // Fecha de entrega seleccionada en el modal
-      pallets: 0, // Sin pallets para "Sin Pedido"
+      fechaPedido: fechaPedido.value,
+      fechaEntrega: modifiedDate,
+      pallets: 0,
       comentarios: `Notificación de Sin Pedido de Traslado - Registrado el ${registrationDate}`,
-      items: [], // Sin items
+      items: [],
       tipo: 'Sin Pedido',
     });
     console.log('[DEBUG] Movement registered successfully with fechaPedido:', fechaPedido.value, 'fechaEntrega:', modifiedDate);
-    // No mostrar notificación adicional, solo la del envío de email
   } catch (error) {
     console.error('Error de EmailJS o addMovement:', error);
     showError('Hubo un error al enviar la notificación o registrar el movimiento.');
@@ -171,14 +185,12 @@ async function handleNotificationConfirm(modifiedDate) {
     <div class="space-y-6">
       <h2 class="text-2xl font-bold text-gray-800">Salida de Inventario</h2>
       
-      <!-- Campos de Fecha y Comentarios (volvemos al input de fecha normal) -->
       <div class="grid md:grid-cols-2 grid-cols-1 gap-6 mb-6">
         <div><label class="block text-sm font-medium text-gray-700">Fecha del Pedido</label><input type="date" v-model="fechaPedido" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 bg-gray-50 border"></div>
         <div><label class="block text-sm font-medium text-gray-700">Fecha de Entrega Deseada</label><input type="date" v-model="fechaEntrega" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 bg-gray-50 border"></div>
         <div class="md:col-span-2"><label class="block text-sm font-medium text-gray-700">Comentarios</label><textarea rows="3" v-model="comentarios" placeholder="Añade notas o instrucciones especiales aquí..." class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 bg-gray-50 border"></textarea></div>
       </div>
       
-      <!-- Sección de Artículos del Pedido (Sin cambios) -->
       <div class="space-y-4 mb-6">
         <h3 class="text-lg font-semibold text-gray-800">Artículos del Pedido</h3>
         <datalist id="products"><option v-for="name in productNames" :key="name" :value="name"></option></datalist>
@@ -196,7 +208,6 @@ async function handleNotificationConfirm(modifiedDate) {
         </div>
       </div>
       
-      <!-- Botones de Acción (Sin cambios) -->
       <div class="flex justify-between items-center mb-6"><button @click="addItem" class="px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-100 rounded-md hover:bg-indigo-200">+ Añadir Artículo</button></div>
       <div class="text-center space-y-4 md:space-y-0 md:space-x-4 md:flex md:justify-center">
         <button @click="submitOrder" :disabled="isSending" class="w-full md:w-auto px-8 py-3 bg-indigo-600 text-white font-semibold rounded-full shadow-lg hover:bg-indigo-700 disabled:bg-indigo-400">
@@ -210,7 +221,6 @@ async function handleNotificationConfirm(modifiedDate) {
       </div>
     </div>
 
-    <!-- Modales (Añadimos el nuevo modal de confirmación) -->
     <ImageModal 
       v-if="isImageModalVisible"
       :image-url="selectedImageUrl"
