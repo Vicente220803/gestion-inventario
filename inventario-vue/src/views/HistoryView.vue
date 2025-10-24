@@ -2,12 +2,14 @@
 import { ref, computed } from 'vue';
 import { useInventory } from '../composables/useInventory'; // Asumiendo que la ruta es así
 import { useConfirm } from '../composables/useConfirm';
+import { useToasts } from '../composables/useToasts';
 import { profile } from '../authState'; // <-- CORRECCIÓN: Importamos desde authState
 import * as docx from 'docx';
 import { saveAs } from 'file-saver';
 
 const { movements, productsWithSku, materialStock, deleteMovement, addMovement } = useInventory();
 const { showConfirm } = useConfirm();
+const { showSuccess, showInfo } = useToasts();
 // const { profile } = useAuth(); // <-- LÍNEA ELIMINADA
 
 const startDate = ref('');
@@ -119,6 +121,9 @@ async function handleSaveEdit() {
   };
 
   await addMovement(newMovementData);
+
+  showSuccess('Pedido editado con éxito.');
+  showInfo('Cambios aplicados al pedido de traslado.');
 
   isEditModalVisible.value = false;
   editingMovement.value = null;

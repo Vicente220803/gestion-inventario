@@ -10,7 +10,7 @@ import ConfirmWithCalendarModal from '../components/ConfirmWithCalendarModal.vue
 
 // --- 2. INICIALIZACIÓN DE COMPOSABLES ---
 const { productsWithSku, materialStock, addMovement } = useInventory();
-const { showSuccess, showError } = useToasts();
+const { showSuccess, showError, showInfo } = useToasts();
 // Ya no usamos el 'useConfirm' simple para esta acción.
 
 // --- 3. ESTADO DEL FORMULARIO ---
@@ -127,6 +127,7 @@ async function submitOrder() {
       tipo: 'Salida',
     });
     showSuccess('¡Pedido registrado y correo enviado con éxito!');
+    showInfo('Nuevo pedido de traslado creado.');
     fechaEntrega.value = '';
     comentarios.value = '';
     items.value = [{ id: 0, desc: '', sku: '', cantidad: 1, url_imagen: null }];
@@ -171,6 +172,7 @@ async function handleNotificationConfirm(modifiedDate) {
       tipo: 'Sin Pedido',
     });
     console.log('[DEBUG] Movement registered successfully with fechaPedido:', fechaPedido.value, 'fechaEntrega:', modifiedDate);
+    showInfo('Notificación de sin pedido registrada.');
   } catch (error) {
     console.error('Error de EmailJS o addMovement:', error);
     showError('Hubo un error al enviar la notificación o registrar el movimiento.');

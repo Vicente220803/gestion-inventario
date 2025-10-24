@@ -13,5 +13,13 @@ export function useToasts() {
     toast.error(message)
   }
 
-  return { showSuccess, showError }
+  const showInfo = (message) => {
+    toast.info(message)
+  }
+
+  const showWarning = (message) => {
+    toast.warning(message)
+  }
+
+  return { showSuccess, showError, showInfo, showWarning }
 }

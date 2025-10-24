@@ -12,7 +12,7 @@ const isLoading = ref(false);
 const updateCounter = ref(0);
 
 export function useInventory() {
-  const { showSuccess, showError } = useToasts();
+  const { showSuccess, showError, showInfo } = useToasts();
   const { createNotification } = useNotifications();
 
   async function loadFromServer() {
@@ -88,6 +88,7 @@ export function useInventory() {
       }
       
       showSuccess('Material añadido con éxito.');
+      showInfo('Nuevo material registrado en el inventario.');
       hasLoaded.value = false;
       await loadFromServer();
       
@@ -166,6 +167,7 @@ export function useInventory() {
       }
 
       showSuccess('Material borrado con éxito.');
+      showInfo('Material eliminado del inventario.');
       hasLoaded.value = false;
       await loadFromServer();
       console.log('[DEBUG] Data reloaded after deletion.');
@@ -264,6 +266,7 @@ export function useInventory() {
       }
 
       showSuccess('Ajuste de inventario registrado con éxito.');
+      showInfo('Inventario actualizado manualmente.');
       hasLoaded.value = false;
       await loadFromServer();
       
@@ -323,6 +326,7 @@ export function useInventory() {
       if (deleteError) throw deleteError;
 
       showSuccess('Entrada aprobada y stock actualizado.');
+      showInfo('Nueva entrada registrada en el inventario.');
       await fetchPendingIncomings();
 
     } catch (error) {
