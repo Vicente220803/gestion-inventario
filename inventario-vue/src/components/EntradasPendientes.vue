@@ -2,8 +2,10 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { supabase } from '../supabaseClient.js';
 import { useInventory } from '@/composables/useInventory';
+import { useToasts } from '@/composables/useToasts';
 
 const { addMovement, productsWithSku } = useInventory();
+const { showSuccess, showInfo, showError } = useToasts();
 
 const entradas = ref([]);
 const cargando = ref(true);
@@ -64,7 +66,7 @@ const handleAccept = async () => {
     };
 
     await addMovement(newMovement, { showToast: true });
-    
+
     const { error: deleteError } = await supabase
       .from('entradas_pendientes')
       .delete()
@@ -74,10 +76,13 @@ const handleAccept = async () => {
       throw deleteError;
     }
 
+    showSuccess('Entrada aceptada con éxito.');
+    showInfo('Nueva entrada registrada en el inventario.');
+
     // --- LÍNEA AÑADIDA PARA ACTUALIZACIÓN INSTANTÁNEA ---
     // Filtramos la lista local para quitar el elemento que acabamos de procesar.
     entradas.value = entradas.value.filter(e => e.id !== entradaSeleccionada.value.id);
-    
+
     cerrarModal();
 
   } catch (error) {
