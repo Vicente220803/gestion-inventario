@@ -50,8 +50,21 @@ function removeItem(index) {
 }
 function updateSku(item) {
   const productData = productsWithSku.value[item.desc];
-  item.sku = productData?.sku || '';
-  item.url_imagen = productData?.url_imagen || null;
+  if (productData) {
+    const existingItem = items.value.find(i => i.sku === productData.sku && i.id !== item.id);
+    if (existingItem) {
+      showError('Este material ya está en el pedido. No puedes añadir duplicados.');
+      item.desc = '';
+      item.sku = '';
+      item.url_imagen = null;
+      return;
+    }
+    item.sku = productData.sku;
+    item.url_imagen = productData.url_imagen;
+  } else {
+    item.sku = '';
+    item.url_imagen = null;
+  }
 }
 watch(fechaPedido, (nuevaFecha) => {
   if (nuevaFecha) {
