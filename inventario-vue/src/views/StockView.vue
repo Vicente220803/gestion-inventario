@@ -114,27 +114,42 @@ function showLargeImage(url) {
 }
 
 function generatePDF() {
-  const doc = new jsPDF();
+  const doc = new jsPDF('l');
   doc.setFontSize(18);
   doc.text('Inventario de Stock', 20, 20);
   doc.setFontSize(12);
-  doc.text(`Fecha de generación: ${new Date().toLocaleDateString('es-ES')}`, 20, 30);
+  doc.text(`Fecha y hora de generación: ${new Date().toLocaleString('es-ES')}`, 20, 30);
   doc.text(`Total Pallets Disponibles: ${totalPallets.value}`, 20, 40);
 
   const tableData = allItems.value.map(item => [
     item.sku,
     item.desc,
-    item.stock
+    item.stock,
+    '',
+    '',
+    '[   ]'
   ]);
 
   autoTable(doc, {
-    head: [['SKU', 'Descripción', 'Cantidad']],
+    head: [['SKU', 'Descripción', 'Stock Teórico', 'Valor Teórico (€)', 'Stock Real', 'Verificación']],
     body: tableData,
     startY: 50,
     styles: { fontSize: 8 },
     headStyles: { fillColor: [41, 128, 185] },
     alternateRowStyles: { fillColor: [245, 245, 245] }
   });
+
+  // Agregar campo de observaciones
+  const yPos = doc.lastAutoTable.finalY + 10;
+  const title = 'Observaciones/Incidencias:';
+  doc.setFontSize(12);
+  const titleWidth = doc.getTextWidth(title);
+  doc.setFillColor(41, 128, 185); // Azul de fondo
+  doc.rect(20, yPos - 5, titleWidth + 4, 10, 'F'); // Rectángulo ajustado al texto
+  doc.setTextColor(255, 255, 255); // Blanco
+  doc.text(title, 20, yPos);
+  doc.setTextColor(0, 0, 0); // Reset to black
+  doc.rect(20, yPos + 5, 250, 30); // Rectángulo para escribir
 
   doc.save('inventario.pdf');
 }
