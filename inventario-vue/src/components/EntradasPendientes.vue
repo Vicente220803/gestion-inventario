@@ -205,7 +205,7 @@ const handleAccept = async () => {
         if (fileIdMatch && fileIdMatch[1]) {
           const fileId = fileIdMatch[1];
           // TU URL DE TEST DE N8N
-          const N8N_WEBHOOK_URL = 'https://surexportlevante.app.n8n.cloud/webhook-test/mover-archivo'; 
+          const N8N_WEBHOOK_URL = 'https://surexportlevante.app.n8n.cloud/webhook/0c0b2c48-370f-47de-989a-b8bae614e0c5'; 
           
           // Llamamos al webhook (sin await para que la web no se quede pillada esperando)
           fetch(N8N_WEBHOOK_URL, {
