@@ -2,17 +2,19 @@
 import { ref } from 'vue';
 import { useInventory } from '../composables/useInventory'; // Ruta corregida si es necesario
 import { useConfirm } from '../composables/useConfirm';
+import { useToasts } from '../composables/useToasts';
 import { profile } from '../authState'; // <-- CORRECCIÓN: Importamos desde authState
 // Importamos el componente para las entradas desde Excel
 import EntradasPendientesExcel from '../components/EntradasPendientes.vue'; // Ruta corregida si es necesario
 
 // const { profile } = useAuth(); // <-- LÍNEA ELIMINADA
 
-const { 
+const {
   productsWithSku,
   addMovement
 } = useInventory();
 const { showConfirm } = useConfirm();
+const { showSuccess } = useToasts();
 
 // --- ESTADO PARA EL FORMULARIO DE ENTRADA MANUAL ---
 const manualFechaEntrada = ref(new Date().toISOString().slice(0, 10));
@@ -35,7 +37,7 @@ function resetManualForm() {
   manualItems.value = [{ sku: '', desc: '', cantidad: null }];
 }
 
-function handleManualSubmit() {
+async function handleManualSubmit() {
   const validItems = manualItems.value
     .filter(i => i.desc && i.cantidad > 0)
     .map(i => ({...i, cantidad: Number(i.cantidad)}));
@@ -59,8 +61,9 @@ function handleManualSubmit() {
   showConfirm(
     'Registrar Entrada Manual',
     '¿Estás seguro de que quieres registrar esta entrada? La acción actualizará el stock inmediatamente.',
-    () => {
-      addMovement(newMovement);
+    async () => {
+      await addMovement(newMovement);
+      showSuccess('Entrada manual registrada correctamente.');
       resetManualForm();
     }
   );
@@ -81,11 +84,11 @@ function handleManualSubmit() {
         </div>
         
         <h3 class="font-semibold text-gray-700">Artículos</h3>
+        <datalist id="materials">
+          <option v-for="(data, desc) in productsWithSku" :key="desc" :value="desc" />
+        </datalist>
         <div v-for="(item, index) in manualItems" :key="index" class="grid grid-cols-1 md:grid-cols-5 gap-2 items-center">
-          <select v-model="item.desc" @change="updateManualSku(item)" class="md:col-span-3 mt-1 block w-full p-2 border rounded-md">
-            <option disabled value="">Selecciona un material</option>
-            <option v-for="(data, desc) in productsWithSku" :key="desc">{{ desc }}</option>
-          </select>
+          <input type="text" v-model="item.desc" list="materials" @change="updateManualSku(item)" placeholder="Buscar o seleccionar material" class="md:col-span-3 mt-1 block w-full p-2 border rounded-md" />
           <input type="text" :value="item.sku" readonly placeholder="SKU" class="mt-1 block w-full p-2 border rounded-md bg-gray-100 text-gray-500" />
           <input type="number" v-model="item.cantidad" placeholder="Cantidad" class="mt-1 block w-full p-2 border rounded-md" />
         </div>
