@@ -3,22 +3,38 @@
 import { ref, computed, watch } from 'vue';
 import { useInventory } from '../composables/useInventory';
 import { useToasts } from '../composables/useToasts';
+import { supabase } from '../supabase';
 import emailjs from '@emailjs/browser';
 import ImageModal from '../components/ImageModal.vue';
 // Importamos el nuevo modal de confirmación con calendario
 import ConfirmWithCalendarModal from '../components/ConfirmWithCalendarModal.vue';
 
 // --- 2. INICIALIZACIÓN DE COMPOSABLES ---
-const { productsWithSku, materialStock, addMovement } = useInventory();
+const { productsWithSku, materialStock, addMovement, obtenerLotesProducto, consumirLoteEspecifico } = useInventory();
 const { showSuccess, showError, showInfo } = useToasts();
 // Ya no usamos el 'useConfirm' simple para esta acción.
 
 // --- 3. ESTADO DEL FORMULARIO ---
-const fechaPedido = ref(new Date().toISOString().slice(0, 10));
-const fechaEntrega = ref('');
-const comentarios = ref('');
-const items = ref([{ id: 0, desc: '', sku: '', cantidad: 1, url_imagen: null }]);
+// Intentar cargar datos guardados del localStorage
+const savedData = localStorage.getItem('newOrderDraft');
+const initialData = savedData ? JSON.parse(savedData) : null;
+
+const fechaPedido = ref(initialData?.fechaPedido || new Date().toISOString().slice(0, 10));
+const fechaEntrega = ref(initialData?.fechaEntrega || '');
+const comentarios = ref(initialData?.comentarios || '');
+const items = ref(initialData?.items || [{ id: 0, desc: '', sku: '', cantidad: 1, url_imagen: null }]);
 const isSending = ref(false);
+
+// Autoguardar en localStorage cada vez que cambia algo
+watch([fechaPedido, fechaEntrega, comentarios, items], () => {
+  const draftData = {
+    fechaPedido: fechaPedido.value,
+    fechaEntrega: fechaEntrega.value,
+    comentarios: comentarios.value,
+    items: items.value
+  };
+  localStorage.setItem('newOrderDraft', JSON.stringify(draftData));
+}, { deep: true });
 
 // --- 4. ESTADO DE LOS MODALES ---
 const isImageModalVisible = ref(false);
@@ -26,6 +42,15 @@ const selectedImageUrl = ref('');
 // Nuevas variables para controlar el modal de confirmación con calendario
 const isConfirmModalVisible = ref(false);
 const dateForModal = ref('');
+// Estado para modal de pallets incompletos
+const isPalletIncompletoModalVisible = ref(false);
+const palletIncompletoData = ref({
+  itemIndex: null,
+  desc: '',
+  sku: '',
+  loteIncompleto: null,
+  cantidadSolicitada: 0
+});
 
 // --- 5. DATOS CALCULADOS ---
 const productNames = computed(() => Object.keys(productsWithSku.value));
@@ -43,9 +68,11 @@ function addItem() {
 }
 function removeItem(index) {
   if (items.value.length > 1) {
+    // Si hay más de 1 item, eliminar el item de la lista
     items.value.splice(index, 1);
   } else {
-    showError('No puedes eliminar el último artículo.');
+    // Si solo hay 1 item, limpiar/borrar sus campos en lugar de eliminarlo
+    items.value[index] = { id: items.value[index].id, desc: '', sku: '', cantidad: 1, url_imagen: null };
   }
 }
 function updateSku(item) {
@@ -88,6 +115,46 @@ async function submitOrder() {
       return showError(`Stock insuficiente para ${item.desc}.`);
     }
   }
+
+  // Verificar si hay pallets incompletos en los items del pedido
+  for (let i = 0; i < validItems.length; i++) {
+    const item = validItems[i];
+    console.log('[DEBUG] Verificando pallets incompletos para:', item.desc, 'SKU:', item.sku);
+    const lotes = await obtenerLotesProducto(item.sku);
+    console.log('[DEBUG] Lotes encontrados:', lotes);
+
+    // Buscar si hay algún lote incompleto disponible
+    const unidadesEstandar = productsWithSku.value[item.desc]?.unidades_por_pallet || 1;
+    console.log('[DEBUG] Unidades estándar:', unidadesEstandar);
+
+    const loteIncompleto = lotes.find(lote => {
+      const esIncompleto = lote.pallets > 0 && lote.unidades_por_pallet < unidadesEstandar;
+      console.log('[DEBUG] Lote ID:', lote.id, 'Pallets:', lote.pallets, 'Uds/pallet:', lote.unidades_por_pallet, 'Es incompleto:', esIncompleto);
+      return esIncompleto;
+    });
+
+    if (loteIncompleto && item.cantidad >= 1) {
+      console.log('[DEBUG] ¡Pallet incompleto detectado! Mostrando modal...');
+      // Hay un pallet incompleto y el usuario está pidiendo al menos 1 pallet
+      palletIncompletoData.value = {
+        itemIndex: i,
+        desc: item.desc,
+        sku: item.sku,
+        loteIncompleto: loteIncompleto,
+        cantidadSolicitada: item.cantidad
+      };
+      isPalletIncompletoModalVisible.value = true;
+      return; // Detener el proceso hasta que el usuario decida
+    }
+  }
+
+  console.log('[DEBUG] No se encontraron pallets incompletos, procesando pedido normalmente');
+  // Si no hay pallets incompletos, proceder normalmente
+  procesarPedido();
+}
+
+async function procesarPedido() {
+  const validItems = items.value.filter(item => item.desc && item.cantidad > 0);
   isSending.value = true;
   
   // Ya no necesitamos la URL base aquí, la eliminamos.
@@ -144,12 +211,83 @@ async function submitOrder() {
     fechaEntrega.value = '';
     comentarios.value = '';
     items.value = [{ id: 0, desc: '', sku: '', cantidad: 1, url_imagen: null }];
+    // Limpiar el borrador guardado
+    localStorage.removeItem('newOrderDraft');
   } catch (error) {
     console.error('Error de EmailJS:', error);
     showError('Hubo un error al enviar el correo. El pedido no se ha registrado.');
   } finally {
     isSending.value = false;
   }
+}
+
+// --- 6B. LÓGICA PARA PALLETS INCOMPLETOS ---
+async function handleUsarPalletIncompleto() {
+  // Usuario quiere despachar el pallet incompleto
+  const data = palletIncompletoData.value;
+  isPalletIncompletoModalVisible.value = false;
+
+  try {
+    // Consumir 1 pallet del lote incompleto
+    await consumirLoteEspecifico(data.loteIncompleto.id, 1);
+
+    // Actualizar stock general (restar 1 pallet)
+    const { error } = await supabase.rpc('actualizar_stock', {
+      sku_producto: data.sku,
+      cantidad_cambio: -1
+    });
+
+    if (error) throw error;
+
+    showSuccess(`Pallet incompleto de ${data.desc} será despachado (${data.loteIncompleto.unidades_por_pallet} unidades)`);
+
+    // Ajustar la cantidad del item (restar 1 porque ya consumimos el pallet incompleto)
+    items.value.find(item => item.sku === data.sku).cantidad -= 1;
+
+    // Continuar verificando si hay más pallets incompletos
+    await verificarSiguientePalletIncompleto(data.itemIndex);
+  } catch (error) {
+    console.error('Error al consumir pallet incompleto:', error);
+    showError('Error al procesar el pallet incompleto');
+  }
+}
+
+function handleNousarPalletIncompleto() {
+  // Usuario NO quiere usar el pallet incompleto, continuar con pallets normales
+  isPalletIncompletoModalVisible.value = false;
+
+  // Continuar verificando si hay más items con pallets incompletos
+  const data = palletIncompletoData.value;
+  verificarSiguientePalletIncompleto(data.itemIndex + 1);
+}
+
+async function verificarSiguientePalletIncompleto(startIndex) {
+  const validItems = items.value.filter(item => item.desc && item.cantidad > 0);
+
+  for (let i = startIndex; i < validItems.length; i++) {
+    const item = validItems[i];
+    const lotes = await obtenerLotesProducto(item.sku);
+
+    const unidadesEstandar = productsWithSku.value[item.desc]?.unidades_por_pallet || 1;
+    const loteIncompleto = lotes.find(lote =>
+      lote.pallets > 0 && lote.unidades_por_pallet < unidadesEstandar
+    );
+
+    if (loteIncompleto && item.cantidad >= 1) {
+      palletIncompletoData.value = {
+        itemIndex: i,
+        desc: item.desc,
+        sku: item.sku,
+        loteIncompleto: loteIncompleto,
+        cantidadSolicitada: item.cantidad
+      };
+      isPalletIncompletoModalVisible.value = true;
+      return;
+    }
+  }
+
+  // No hay más pallets incompletos, procesar el pedido
+  procesarPedido();
 }
 
 // --- 7. NUEVA LÓGICA PARA LA NOTIFICACIÓN "SIN PEDIDO" ---
@@ -236,17 +374,68 @@ async function handleNotificationConfirm(modifiedDate) {
       </div>
     </div>
 
-    <ImageModal 
+    <ImageModal
       v-if="isImageModalVisible"
       :image-url="selectedImageUrl"
       @close="isImageModalVisible = false"
     />
-    
+
     <ConfirmWithCalendarModal
       :show="isConfirmModalVisible"
       :initial-date="dateForModal"
       @close="isConfirmModalVisible = false"
       @confirm="handleNotificationConfirm"
     />
+
+    <!-- Modal de Confirmación para Pallet Incompleto -->
+    <div v-if="isPalletIncompletoModalVisible" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+      <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-md">
+        <div class="flex items-center gap-3 mb-4">
+          <span class="text-4xl">⚠️</span>
+          <h3 class="text-xl font-bold text-gray-900 dark:text-white">Pallet Incompleto Disponible</h3>
+        </div>
+
+        <div class="p-4 bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 rounded-md mb-4">
+          <p class="text-sm text-yellow-800 dark:text-yellow-200 mb-3">
+            <strong>Material:</strong> {{ palletIncompletoData.desc }}
+          </p>
+          <p class="text-sm text-yellow-800 dark:text-yellow-200 mb-3">
+            Hay un pallet incompleto con <strong>{{ palletIncompletoData.loteIncompleto?.unidades_por_pallet }} unidades</strong>
+            (en lugar de {{ productsWithSku[palletIncompletoData.desc]?.unidades_por_pallet }} unidades estándar).
+          </p>
+          <p class="text-sm text-yellow-800 dark:text-yellow-200 font-semibold">
+            ¿Quieres despachar este pallet incompleto primero?
+          </p>
+        </div>
+
+        <div class="space-y-3 mb-6">
+          <div class="p-3 bg-green-50 dark:bg-green-900 rounded-md border border-green-200 dark:border-green-700">
+            <p class="text-sm text-green-800 dark:text-green-200">
+              <strong>Si eliges "Sí":</strong> Se despachará el pallet incompleto y desaparecerá el símbolo ⚠️ del inventario.
+            </p>
+          </div>
+          <div class="p-3 bg-blue-50 dark:bg-blue-900 rounded-md border border-blue-200 dark:border-blue-700">
+            <p class="text-sm text-blue-800 dark:text-blue-200">
+              <strong>Si eliges "No":</strong> Se despachará un pallet completo normal y el incompleto quedará en stock.
+            </p>
+          </div>
+        </div>
+
+        <div class="flex justify-end space-x-3">
+          <button
+            @click="handleNousarPalletIncompleto"
+            class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+          >
+            No, usar pallet completo
+          </button>
+          <button
+            @click="handleUsarPalletIncompleto"
+            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          >
+            Sí, despachar incompleto
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
