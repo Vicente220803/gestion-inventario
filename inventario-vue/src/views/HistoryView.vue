@@ -161,26 +161,42 @@ async function calculateAndExport() {
   const COSTE_POR_MOVIMIENTO_UNITARIO = 1.75;
   const COSTE_ALMACENAJE_DIARIO_UNITARIO = 0.20;
 
-  const allMovementsSorted = [...movements.value].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  // IMPORTANTE: Ordenar por fechaEntrega (fecha real del movimiento) en lugar de created_at
+  const allMovementsSorted = [...movements.value].sort((a, b) => new Date(a.fechaEntrega) - new Date(b.fechaEntrega));
 
+  // Inicializar con el stock actual REAL de hoy
   const runningStockState = {};
-  Object.values(productsWithSku.value).forEach(p => { runningStockState[p.sku] = 0; });
+  Object.keys(materialStock.value).forEach(sku => {
+    runningStockState[sku] = Number(materialStock.value[sku] || 0);
+  });
 
   const dayBeforeStartDate = new Date(startDate.value);
   dayBeforeStartDate.setDate(dayBeforeStartDate.getDate() - 1);
   dayBeforeStartDate.setHours(23, 59, 59, 999);
 
-  const movementsBeforeReport = allMovementsSorted.filter(m => new Date(m.created_at) <= dayBeforeStartDate);
+  // Filtrar movimientos ANTES del periodo (por fechaEntrega, no created_at)
+  const movementsBeforeReport = allMovementsSorted.filter(m => new Date(m.fechaEntrega) <= dayBeforeStartDate);
 
+  // Calcular stock inicial del periodo: stock actual - movimientos futuros + movimientos pasados
   movementsBeforeReport.forEach(mov => {
     (mov.items || []).forEach(item => {
       runningStockState[item.sku] = runningStockState[item.sku] || 0;
+      // No hacemos nada aquí, el stock ya está correcto desde materialStock
+      // Solo necesitamos procesar los movimientos dentro del rango
+    });
+  });
+
+  // Ahora hay que "retroceder" el stock actual para obtener el stock inicial del periodo
+  // Restamos las entradas y sumamos las salidas que ocurren DESPUÉS del día anterior al inicio
+  const movementsAfterDayBefore = allMovementsSorted.filter(m => new Date(m.fechaEntrega) > dayBeforeStartDate);
+
+  movementsAfterDayBefore.forEach(mov => {
+    (mov.items || []).forEach(item => {
+      runningStockState[item.sku] = runningStockState[item.sku] || 0;
       if (mov.tipo === 'Entrada') {
-        runningStockState[item.sku] += Number(item.cantidad || 0);
+        runningStockState[item.sku] -= Number(item.cantidad || 0); // Restar entradas futuras
       } else if (mov.tipo === 'Salida') {
-        runningStockState[item.sku] -= Number(item.cantidad || 0);
-      } else if (['Ajuste', 'Recuento Manual'].includes(mov.tipo)) {
-        runningStockState[item.sku] = Number(item.cantidad_nueva ?? item.cantidad ?? 0);
+        runningStockState[item.sku] += Number(item.cantidad || 0); // Sumar salidas futuras
       }
     });
   });
@@ -197,7 +213,7 @@ async function calculateAndExport() {
     const stockInicialDelDia = Object.values(runningStockState).reduce((sum, qty) => sum + qty, 0);
 
     const movementsForDay = allMovementsSorted.filter(m => {
-      const effectiveDate = m.created_at.slice(0, 10);
+      const effectiveDate = m.fechaEntrega.slice(0, 10);
       return effectiveDate === dateStr;
     });
     
