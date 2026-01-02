@@ -19,16 +19,16 @@ const { showSuccess, showError, showInfo } = useToasts();
 const savedData = localStorage.getItem('newOrderDraft');
 const initialData = savedData ? JSON.parse(savedData) : null;
 
-const fechaPedido = ref(initialData?.fechaPedido || new Date().toISOString().slice(0, 10));
+// IMPORTANTE: fechaPedido siempre es HOY (no se guarda en localStorage)
+const fechaPedido = ref(new Date().toISOString().slice(0, 10));
 const fechaEntrega = ref(initialData?.fechaEntrega || '');
 const comentarios = ref(initialData?.comentarios || '');
 const items = ref(initialData?.items || [{ id: 0, desc: '', sku: '', cantidad: 1, url_imagen: null }]);
 const isSending = ref(false);
 
-// Autoguardar en localStorage cada vez que cambia algo
-watch([fechaPedido, fechaEntrega, comentarios, items], () => {
+// Autoguardar en localStorage cada vez que cambia algo (excepto fechaPedido)
+watch([fechaEntrega, comentarios, items], () => {
   const draftData = {
-    fechaPedido: fechaPedido.value,
     fechaEntrega: fechaEntrega.value,
     comentarios: comentarios.value,
     items: items.value
@@ -208,6 +208,8 @@ async function procesarPedido() {
     });
     showSuccess('¡Pedido registrado y correo enviado con éxito!');
     showInfo('Nuevo pedido de traslado creado.');
+    // Resetear formulario
+    fechaPedido.value = new Date().toISOString().slice(0, 10); // Actualizar a HOY
     fechaEntrega.value = '';
     comentarios.value = '';
     items.value = [{ id: 0, desc: '', sku: '', cantidad: 1, url_imagen: null }];
@@ -339,7 +341,7 @@ async function handleNotificationConfirm(modifiedDate) {
       <h2 class="text-2xl font-bold text-gray-800">Salida de Inventario</h2>
       
       <div class="grid md:grid-cols-2 grid-cols-1 gap-6 mb-6">
-        <div><label class="block text-sm font-medium text-gray-700">Fecha del Pedido</label><input type="date" v-model="fechaPedido" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 bg-gray-50 border"></div>
+        <div><label class="block text-sm font-medium text-gray-700">Fecha del Pedido</label><input type="date" v-model="fechaPedido" readonly class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 bg-gray-100 border cursor-not-allowed"></div>
         <div><label class="block text-sm font-medium text-gray-700">Fecha de Entrega Deseada</label><input type="date" v-model="fechaEntrega" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 bg-gray-50 border"></div>
         <div class="md:col-span-2"><label class="block text-sm font-medium text-gray-700">Comentarios</label><textarea rows="3" v-model="comentarios" placeholder="Añade notas o instrucciones especiales aquí..." class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 bg-gray-50 border"></textarea></div>
       </div>
