@@ -70,7 +70,7 @@ const allItems = computed(() => {
       desc,
       stock: pallets,
       unidades_por_pallet: unidadesPorPallet,
-      unidades_totales: stockInfo.unidades_totales || (pallets * unidadesPorPallet),
+      unidades_totales: stockInfo.tiene_discrepancias ? stockInfo.unidades_totales : (pallets * unidadesPorPallet),
       tiene_discrepancias: stockInfo.tiene_discrepancias || false,
       image: productsWithSku.value[desc]?.url_imagen
     };
