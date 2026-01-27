@@ -62,17 +62,22 @@ const skuToDesc = computed(() => {
 const allItems = computed(() => {
   return Object.entries(skuToDesc.value).map(([sku, desc]) => {
     const stockInfo = stockConUnidades.value[sku] || {};
-    const unidadesPorPallet = productsWithSku.value[desc]?.unidades_por_pallet || 1;
-    const pallets = materialStock.value[sku] || 0;
+    const unidadesPorPallet = Number(productsWithSku.value[desc]?.unidades_por_pallet) || 1;
+    const pallets = Number(materialStock.value[sku]) || 0;
+
+    const unidadesTotales = stockInfo.tiene_discrepancias ? Number(stockInfo.unidades_totales) : (pallets * unidadesPorPallet);
+    const precioUnitario = Number(productsWithSku.value[desc]?.precio_unitario) || 0;
 
     return {
       sku,
       desc,
       stock: pallets,
       unidades_por_pallet: unidadesPorPallet,
-      unidades_totales: stockInfo.tiene_discrepancias ? stockInfo.unidades_totales : (pallets * unidadesPorPallet),
+      unidades_totales: unidadesTotales,
       tiene_discrepancias: stockInfo.tiene_discrepancias || false,
-      image: productsWithSku.value[desc]?.url_imagen
+      image: productsWithSku.value[desc]?.url_imagen,
+      precio_unitario: precioUnitario,
+      valor_total: unidadesTotales * precioUnitario
     };
   });
 });
@@ -225,25 +230,31 @@ async function guardarAjusteUnidades() {
 
 function generatePDF() {
   const doc = new jsPDF('l');
+  const valorTotalInventario = allItems.value.reduce((sum, item) => sum + (item.valor_total || 0), 0);
+
   doc.setFontSize(18);
   doc.text('Inventario de Stock', 20, 20);
   doc.setFontSize(12);
   doc.text(`Fecha y hora de generación: ${new Date().toLocaleString('es-ES')}`, 20, 30);
-  doc.text(`Total Pallets Disponibles: ${totalPallets.value}`, 20, 40);
+  doc.text(`Total Pallets Disponibles: ${totalPallets.value}  |  Valor Total Inventario: ${valorTotalInventario.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`, 20, 40);
+
+  const formatNumber = (num) => Number(num).toLocaleString('es-ES');
+  const formatCurrency = (num) => Number(num).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
   const tableData = allItems.value.map(item => [
     item.sku,
     item.desc,
-    item.stock,
-    item.unidades_totales.toLocaleString(),
-    '',
+    formatNumber(item.stock),
+    formatNumber(item.unidades_totales),
+    item.precio_unitario > 0 ? formatCurrency(item.precio_unitario) : '-',
+    item.valor_total > 0 ? formatCurrency(item.valor_total) : '-',
     '',
     '[   ]',
     item.tiene_discrepancias ? 'INCOMPLETO' : ''
   ]);
 
   autoTable(doc, {
-    head: [['SKU', 'Descripción', 'Stock Teórico', 'Total Unidades', 'Valor Teórico (€)', 'Stock Real', 'Verificación', 'Observación']],
+    head: [['SKU', 'Descripción', 'Stock', 'Unidades', 'Precio Unit.', 'Total (€)', 'Stock Real', 'Verif.', 'Obs.']],
     body: tableData,
     startY: 50,
     styles: { fontSize: 8 },
