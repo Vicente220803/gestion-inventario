@@ -6,6 +6,7 @@ import { useToasts } from '../composables/useToasts';
 import { profile } from '../authState'; // <-- CORRECCIÓN: Importamos desde authState
 import * as docx from 'docx';
 import { saveAs } from 'file-saver';
+import emailjs from '@emailjs/browser';
 
 const { movements, productsWithSku, materialStock, deleteMovement, addMovement } = useInventory();
 const { showConfirm } = useConfirm();
@@ -14,6 +15,9 @@ const { showSuccess, showInfo } = useToasts();
 
 const startDate = ref('');
 const endDate = ref('');
+const selectedTipo = ref(''); // Filtro por tipo de movimiento
+
+const tiposMovimiento = ['Entrada', 'Salida', 'Ajuste', 'Recuento Manual', 'Sin Pedido'];
 
 // Estado para el modal de edición
 const isEditModalVisible = ref(false);
@@ -27,8 +31,13 @@ const filteredMovements = computed(() => {
   if (profile?.value?.role === 'operario') {
     movs = movs.filter(m => m.tipo === 'Salida');
   }
+  // Filtrar por tipo de movimiento
+  if (selectedTipo.value) {
+    movs = movs.filter(m => m.tipo === selectedTipo.value);
+  }
+  // Filtrar por rango de fechas
   if (startDate.value && endDate.value) {
-    return movs.filter(m => {
+    movs = movs.filter(m => {
       const moveDate = new Date(m.created_at);
       const start = new Date(startDate.value + 'T00:00:00');
       const end = new Date(endDate.value + 'T23:59:59');
@@ -63,6 +72,52 @@ function handleEdit(movement) {
   editedFechaEntrega.value = movement.fechaEntrega;
   editedComentarios.value = movement.comentarios || '';
   isEditModalVisible.value = true;
+}
+
+async function sendModificationEmail(movementData) {
+  const SERVICE_ID = 'service_ii38rc9';
+  const TEMPLATE_ID = 'template_21cuo39';
+  const PUBLIC_KEY = 'Zkhtkt81X2Q41Fwso';
+  const DESTINATARIOS = ['vicentemarco@surexport.es'];
+
+  let articulos = '<table style="width: 100%; border-collapse: collapse;">';
+  for (const item of movementData.items) {
+    const productInfo = Object.values(productsWithSku.value).find(p => p.sku === item.sku);
+    const imageUrl = productInfo?.url_imagen || '';
+    articulos += `
+      <tr style="border-bottom: 1px solid #dddddd;">
+        <td style="padding: 10px; text-align: left;">
+          ${imageUrl ? `<img src="${imageUrl}" alt="Imagen del producto" width="70" style="display: block; border-radius: 8px;">` : ''}
+        </td>
+        <td style="padding: 10px; vertical-align: middle; font-family: Arial, sans-serif; font-size: 14px;">
+          ${item.cantidad} x ${item.desc} (SKU: ${item.sku})
+        </td>
+      </tr>
+    `;
+  }
+  articulos += '</table>';
+
+  const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '-';
+  const formatDateSubject = (d) => d ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-') : '-';
+  const totalPallets = movementData.items.reduce((sum, item) => sum + Number(item.cantidad), 0);
+
+  const templateParams = {
+    fecha_pedido: formatDate(movementData.fechaPedido),
+    fecha_entrega: formatDate(movementData.fechaEntrega),
+    fecha_entrega_subject: formatDateSubject(movementData.fechaEntrega),
+    modificado_por: profile?.value?.email || profile?.value?.role || 'Usuario',
+    articulos,
+    total_pallets: totalPallets,
+    comentarios: movementData.comentarios || '-',
+  };
+
+  try {
+    for (const email of DESTINATARIOS) {
+      await emailjs.send(SERVICE_ID, TEMPLATE_ID, { ...templateParams, to_email: email }, PUBLIC_KEY);
+    }
+  } catch (error) {
+    console.error('Error al enviar email de notificación:', error);
+  }
 }
 
 async function handleSaveEdit() {
@@ -121,6 +176,9 @@ async function handleSaveEdit() {
   };
 
   await addMovement(newMovementData);
+
+  // Enviar email de notificación
+  await sendModificationEmail(newMovementData);
 
   showSuccess('Pedido editado con éxito.');
   showInfo('Cambios aplicados al pedido de traslado.');
@@ -348,6 +406,34 @@ async function calculateAndExport() {
       </div>
       <button v-if="profile?.role !== 'operario'" @click="calculateAndExport" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 w-full">
         Calcular y Exportar
+      </button>
+    </div>
+
+    <!-- Filtro por tipo de movimiento -->
+    <div class="flex flex-wrap gap-2">
+      <button
+        @click="selectedTipo = ''"
+        :class="[
+          'px-4 py-2 rounded-full text-sm font-medium transition-colors',
+          selectedTipo === ''
+            ? 'bg-gray-800 text-white'
+            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+        ]"
+      >
+        Todos
+      </button>
+      <button
+        v-for="tipo in tiposMovimiento"
+        :key="tipo"
+        @click="selectedTipo = tipo"
+        :class="[
+          'px-4 py-2 rounded-full text-sm font-medium transition-colors',
+          selectedTipo === tipo
+            ? (tipo === 'Entrada' ? 'bg-green-600 text-white' : tipo === 'Salida' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white')
+            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+        ]"
+      >
+        {{ tipo }}
       </button>
     </div>
 
