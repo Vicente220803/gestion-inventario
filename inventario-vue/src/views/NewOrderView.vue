@@ -3,7 +3,6 @@
 import { ref, computed, watch } from 'vue';
 import { useInventory } from '../composables/useInventory';
 import { useToasts } from '../composables/useToasts';
-import { supabase } from '../supabase';
 import emailjs from '@emailjs/browser';
 import ImageModal from '../components/ImageModal.vue';
 // Importamos el nuevo modal de confirmación con calendario
@@ -225,28 +224,21 @@ async function procesarPedido() {
 
 // --- 6B. LÓGICA PARA PALLETS INCOMPLETOS ---
 async function handleUsarPalletIncompleto() {
-  // Usuario quiere despachar el pallet incompleto
   const data = palletIncompletoData.value;
   isPalletIncompletoModalVisible.value = false;
 
+  // Consumir TODOS los pallets del lote incompleto (o los que el usuario pidió, lo que sea menor)
+  const palletsAConsumir = Math.min(data.loteIncompleto.pallets, data.cantidadSolicitada);
+
   try {
-    // Consumir 1 pallet del lote incompleto
-    await consumirLoteEspecifico(data.loteIncompleto.id, 1);
+    await consumirLoteEspecifico(data.loteIncompleto.id, palletsAConsumir);
 
-    // Actualizar stock general (restar 1 pallet)
-    const { error } = await supabase.rpc('actualizar_stock', {
-      sku_producto: data.sku,
-      cantidad_cambio: -1
-    });
+    // No llamamos a actualizar_stock aquí: procesarPedido → addMovement lo hará
+    // por el total de item.cantidad, que no modificamos.
 
-    if (error) throw error;
+    showSuccess(`${palletsAConsumir} pallet(s) incompleto(s) de ${data.desc} serán despachados (${data.loteIncompleto.unidades_por_pallet} uds/pallet)`);
 
-    showSuccess(`Pallet incompleto de ${data.desc} será despachado (${data.loteIncompleto.unidades_por_pallet} unidades)`);
-
-    // Ajustar la cantidad del item (restar 1 porque ya consumimos el pallet incompleto)
-    items.value.find(item => item.sku === data.sku).cantidad -= 1;
-
-    // Continuar verificando si hay más pallets incompletos
+    // Continuar verificando si hay más lotes incompletos para este u otros items
     await verificarSiguientePalletIncompleto(data.itemIndex);
   } catch (error) {
     console.error('Error al consumir pallet incompleto:', error);
@@ -402,18 +394,19 @@ async function handleNotificationConfirm(modifiedDate) {
             <strong>Material:</strong> {{ palletIncompletoData.desc }}
           </p>
           <p class="text-sm text-yellow-800 dark:text-yellow-200 mb-3">
-            Hay un pallet incompleto con <strong>{{ palletIncompletoData.loteIncompleto?.unidades_por_pallet }} unidades</strong>
+            Hay <strong>{{ palletIncompletoData.loteIncompleto?.pallets }} pallet(s) incompleto(s)</strong>
+            con <strong>{{ palletIncompletoData.loteIncompleto?.unidades_por_pallet }} unidades</strong> cada uno
             (en lugar de {{ productsWithSku[palletIncompletoData.desc]?.unidades_por_pallet }} unidades estándar).
           </p>
           <p class="text-sm text-yellow-800 dark:text-yellow-200 font-semibold">
-            ¿Quieres despachar este pallet incompleto primero?
+            ¿Quieres despachar estos {{ palletIncompletoData.loteIncompleto?.pallets }} pallet(s) incompleto(s) ahora?
           </p>
         </div>
 
         <div class="space-y-3 mb-6">
           <div class="p-3 bg-green-50 dark:bg-green-900 rounded-md border border-green-200 dark:border-green-700">
             <p class="text-sm text-green-800 dark:text-green-200">
-              <strong>Si eliges "Sí":</strong> Se despachará el pallet incompleto y desaparecerá el símbolo ⚠️ del inventario.
+              <strong>Si eliges "Sí":</strong> Se despacharán los {{ palletIncompletoData.loteIncompleto?.pallets }} pallet(s) incompleto(s) y desaparecerá el símbolo ⚠️ del inventario.
             </p>
           </div>
           <div class="p-3 bg-blue-50 dark:bg-blue-900 rounded-md border border-blue-200 dark:border-blue-700">
@@ -434,7 +427,7 @@ async function handleNotificationConfirm(modifiedDate) {
             @click="handleUsarPalletIncompleto"
             class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           >
-            Sí, despachar incompleto
+            Sí, despachar incompleto(s)
           </button>
         </div>
       </div>

@@ -17,6 +17,11 @@ coverage
 /cypress/videos/
 /cypress/screenshots/
 
+# Credenciales y configuración sensible
+.env
+.env.*
+.mcp.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

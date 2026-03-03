@@ -603,19 +603,26 @@ export function useInventory() {
         throw new Error('No hay suficientes pallets en el lote');
       }
 
-      // Actualizar el lote
       const nuevosPallets = lote.pallets - palletsAConsumir;
-      const nuevasUnidades = nuevosPallets * lote.unidades_por_pallet;
 
-      const { error: updateError } = await supabase
-        .from('stock_lotes')
-        .update({
-          pallets: nuevosPallets,
-          unidades_totales: nuevasUnidades
-        })
-        .eq('id', loteId);
-
-      if (updateError) throw updateError;
+      if (nuevosPallets === 0) {
+        // Si el lote queda vacío, eliminarlo para respetar la constraint de positivos
+        const { error: deleteError } = await supabase
+          .from('stock_lotes')
+          .delete()
+          .eq('id', loteId);
+        if (deleteError) throw deleteError;
+      } else {
+        const nuevasUnidades = nuevosPallets * lote.unidades_por_pallet;
+        const { error: updateError } = await supabase
+          .from('stock_lotes')
+          .update({
+            pallets: nuevosPallets,
+            unidades_totales: nuevasUnidades
+          })
+          .eq('id', loteId);
+        if (updateError) throw updateError;
+      }
 
       return true;
     } catch (error) {

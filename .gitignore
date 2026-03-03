@@ -1,0 +1,4 @@
+# Credenciales y configuración sensible
+.mcp.json
+.env
+.env.*
