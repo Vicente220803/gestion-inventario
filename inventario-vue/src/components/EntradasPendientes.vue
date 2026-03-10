@@ -11,6 +11,18 @@ const entradas = ref([]);
 const cargando = ref(true);
 const entradaSeleccionada = ref(null);
 
+// --- NOTIFICACIONES DE ENTRADA ---
+const CLIENTES_CON_NOTIFICACION = ['ITC', 'Faerch'];
+const N8N_WEBHOOK_NOTIFICACION = 'https://surexportlevante.app.n8n.cloud/webhook/0a2fa4b7-6de7-44b3-ab8c-a9feb12e41f0';
+
+const numeroPedido = ref('');
+
+const requiereNotificacion = computed(() => {
+  if (!entradaSeleccionada.value) return false;
+  const proveedor = entradaSeleccionada.value.parsed_data.proveedor || '';
+  return CLIENTES_CON_NOTIFICACION.some(c => proveedor.toLowerCase().includes(c.toLowerCase()));
+});
+
 // Variables para el modal
 const itemsParaProcesar = ref([]); 
 
@@ -108,10 +120,12 @@ const abrirModal = (entrada) => {
 const cerrarModal = () => {
   entradaSeleccionada.value = null;
   itemsParaProcesar.value = [];
+  numeroPedido.value = '';
 };
 
 const handleAccept = async () => {
   if (!entradaSeleccionada.value) return;
+  const entrada = entradaSeleccionada.value;
 
   try {
     let itemsProcesados = 0;
@@ -153,11 +167,11 @@ const handleAccept = async () => {
 
     const fechaActual = new Date().toISOString().slice(0, 10);
     // Aplicamos la corrección de fecha
-    const fechaDocRaw = entradaSeleccionada.value.parsed_data.fecha;
+    const fechaDocRaw = entrada.parsed_data.fecha;
     const fechaDocCorregida = normalizarFecha(fechaDocRaw);
-    
-    const proveedor = entradaSeleccionada.value.parsed_data.proveedor || 'Desconocido';
-    const albaran = entradaSeleccionada.value.parsed_data.albaran || 'S/N';
+
+    const proveedor = entrada.parsed_data.proveedor || 'Desconocido';
+    const albaran = entrada.parsed_data.albaran || 'S/N';
 
     for (const item of itemsValidos) {
       const entradaProducto = Object.entries(productsWithSku.value).find(([_, val]) => val.sku === item.sku_seleccionado);
@@ -189,16 +203,16 @@ const handleAccept = async () => {
     const { error: deleteError } = await supabase
       .from('entradas_pendientes')
       .delete()
-      .eq('id', entradaSeleccionada.value.id);
+      .eq('id', entrada.id);
 
     if (deleteError) throw deleteError;
 
     // ============================================================
     // 🚀 LLAMADA A N8N PARA MOVER EL ARCHIVO 🚀
     // ============================================================
-    if (entradaSeleccionada.value.file_url) {
+    if (entrada.file_url) {
       try {
-        const fileUrl = entradaSeleccionada.value.file_url;
+        const fileUrl = entrada.file_url;
         // Sacamos el ID del archivo
         const fileIdMatch = fileUrl.match(/\/d\/(.+?)(\/|$)/);
         
@@ -221,7 +235,34 @@ const handleAccept = async () => {
     // ============================================================
 
     showSuccess(`Entrada procesada correctamente.`);
-    entradas.value = entradas.value.filter(e => e.id !== entradaSeleccionada.value.id);
+
+    // Enviar notificación por correo si el cliente lo requiere
+    if (requiereNotificacion.value) {
+      const fileUrl = entrada.file_url || '';
+      const fileIdMatch = fileUrl.match(/\/d\/(.+?)(\/|$)/);
+      const fileId = fileIdMatch ? fileIdMatch[1] : null;
+
+      const payload = {
+        proveedor,
+        fecha: entrada.parsed_data.fecha || fechaActual,
+        albaran,
+        numero_pedido: numeroPedido.value || 'N/A',
+        destinatario: 'operacioneslevante@surexport.es',
+        file_id: fileId,
+        items: itemsValidos.map(item => {
+          const prod = Object.entries(productsWithSku.value).find(([_, v]) => v.sku === item.sku_seleccionado);
+          return { descripcion: prod ? prod[0] : item.descripcion_pdf, cantidad: Number(item.cantidad) };
+        })
+      };
+
+      fetch(N8N_WEBHOOK_NOTIFICACION, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).catch(err => console.warn('Error enviando notificación de entrada:', err));
+    }
+
+    entradas.value = entradas.value.filter(e => e.id !== entrada.id);
     cerrarModal();
 
   } catch (error) {
@@ -288,7 +329,7 @@ onUnmounted(() => {
 
     <!-- MODAL DE REVISIÓN -->
     <div v-if="entradaSeleccionada" class="modal-overlay" @click="cerrarModal">
-      <div class="modal-content" @click.stop>
+      <div class="modal-content flex flex-col" style="max-height:90vh;" @click.stop>
         <div class="flex justify-between items-center mb-4 border-b pb-2">
           <h3 class="text-lg font-bold text-gray-800">Confirmar Entrada</h3>
           <button @click="cerrarModal" class="text-gray-500 hover:text-gray-700 font-bold text-xl">&times;</button>
@@ -301,7 +342,7 @@ onUnmounted(() => {
 
         <p class="mb-2 font-semibold text-sm text-gray-600 uppercase">Verifica y Asigna Materiales:</p>
         
-        <div class="space-y-4 max-h-[60vh] overflow-y-auto mb-6 pr-1">
+        <div class="space-y-4 overflow-y-auto mb-6 pr-1 flex-1">
           <div v-for="(item, index) in itemsParaProcesar" :key="index" class="bg-gray-50 p-3 rounded border shadow-sm">
             
             <div class="mb-2">
@@ -338,6 +379,19 @@ onUnmounted(() => {
           <div v-if="itemsParaProcesar.length === 0" class="text-center py-4 text-gray-500">
             No se han encontrado items en el JSON.
           </div>
+        </div>
+
+        <!-- Campo número de pedido: solo para clientes con notificación -->
+        <div v-if="requiereNotificacion" class="mb-4 bg-yellow-50 border border-yellow-200 rounded p-3">
+          <p class="text-xs font-bold text-yellow-700 uppercase mb-2">✉️ Se enviará notificación de entrada</p>
+          <label class="text-sm font-semibold text-gray-700">Número de pedido (opcional)</label>
+          <input
+            v-model="numeroPedido"
+            type="text"
+            placeholder="Ej: 4100274556"
+            class="mt-1 w-full p-2 text-sm border rounded focus:ring-2 focus:ring-yellow-400 outline-none"
+          />
+          <p class="text-xs text-gray-500 mt-1">Resumen a enviar: {{ itemsParaProcesar.filter(i => Number(i.cantidad) > 0).map(i => `${i.descripcion_pdf} → ${i.cantidad} palés`).join(' | ') }}</p>
         </div>
 
         <div class="flex justify-end gap-3 pt-4 border-t">
