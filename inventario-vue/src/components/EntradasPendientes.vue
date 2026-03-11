@@ -184,14 +184,15 @@ const handleAccept = async () => {
       const [nombreReal, datosReal] = entradaProducto;
 
       const newMovement = {
-        fechaPedido: fechaDocCorregida, // Fecha en formato correcto
+        fechaPedido: fechaDocCorregida,
         fechaEntrega: fechaActual,
         comentarios: `Auto (Prov: ${proveedor}) - Ref: ${albaran}`,
         tipo: 'Entrada',
         items: [{
           desc: nombreReal,
           sku: datosReal.sku,
-          cantidad: Number(item.cantidad)
+          cantidad: Number(item.cantidad),
+          unidades_por_pallet: datosReal.unidades_por_pallet || 1
         }],
         pallets: Number(item.cantidad)
       };

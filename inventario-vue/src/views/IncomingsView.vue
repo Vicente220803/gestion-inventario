@@ -43,8 +43,15 @@ function resetManualForm() {
 }
 
 async function handleManualSubmit() {
+  // Validar que todos los artículos con descripción tengan SKU asignado
+  const itemsSinSku = manualItems.value.filter(i => i.desc && !i.sku);
+  if (itemsSinSku.length > 0) {
+    alert('Algunos artículos no tienen material asignado. Selecciona el material desde el desplegable de sugerencias.');
+    return;
+  }
+
   const validItems = manualItems.value
-    .filter(i => i.desc && i.cantidad > 0)
+    .filter(i => i.desc && i.sku && i.cantidad > 0)
     .map(i => ({...i, cantidad: Number(i.cantidad)}));
 
   if (validItems.length === 0) {
