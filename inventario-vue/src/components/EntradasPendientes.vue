@@ -244,10 +244,10 @@ const handleAccept = async () => {
 
       const payload = {
         proveedor,
-        fecha: entrada.parsed_data.fecha || fechaActual,
+        fecha: new Date().toLocaleDateString('es-ES'),
         albaran,
         numero_pedido: numeroPedido.value || 'N/A',
-        destinatario: 'operacioneslevante@surexport.es',
+        destinatario: 'calidadlevante@surexport.es, operacioneslevante@surexport.es, logisticalevante@surexport.es, cristinacalvillo@surexport.es',
         file_id: fileId,
         items: itemsValidos.map(item => {
           const prod = Object.entries(productsWithSku.value).find(([_, v]) => v.sku === item.sku_seleccionado);
