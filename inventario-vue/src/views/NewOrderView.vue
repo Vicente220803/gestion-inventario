@@ -43,6 +43,7 @@ const isConfirmModalVisible = ref(false);
 const dateForModal = ref('');
 // Estado para modal de pallets incompletos
 const isPalletIncompletoModalVisible = ref(false);
+const palletIncompletosUsados = ref([]);
 const palletIncompletoData = ref({
   itemIndex: null,
   desc: '',
@@ -115,6 +116,9 @@ async function submitOrder() {
     }
   }
 
+  // Resetear incompletos al iniciar
+  palletIncompletosUsados.value = [];
+
   // Verificar si hay pallets incompletos en los items del pedido
   for (let i = 0; i < validItems.length; i++) {
     const item = validItems[i];
@@ -182,12 +186,17 @@ async function procesarPedido() {
 
   const totalPallets = validItems.reduce((sum, item) => sum + Number(item.cantidad), 0);
   
+  let comentariosEmail = comentarios.value || 'Sin comentarios.';
+  if (palletIncompletosUsados.value.length > 0) {
+    comentariosEmail += `\n\nSe piden los pallets incompletos de: ${palletIncompletosUsados.value.join(', ')}.`;
+  }
+
   const templateParams = {
     fecha_pedido: fechaPedido.value,
     fecha_entrega: fechaEntrega.value,
     items_html: itemsHtml,
     total_pallets: totalPallets,
-    comentarios: comentarios.value || 'Sin comentarios.',
+    comentarios: comentariosEmail,
   };
 
   try {
@@ -236,10 +245,11 @@ async function handleUsarPalletIncompleto() {
     // No llamamos a actualizar_stock aquí: procesarPedido → addMovement lo hará
     // por el total de item.cantidad, que no modificamos.
 
+    palletIncompletosUsados.value.push(data.desc);
     showSuccess(`${palletsAConsumir} pallet(s) incompleto(s) de ${data.desc} serán despachados (${data.loteIncompleto.unidades_por_pallet} uds/pallet)`);
 
-    // Continuar verificando si hay más lotes incompletos para este u otros items
-    await verificarSiguientePalletIncompleto(data.itemIndex);
+    // Continuar verificando el siguiente item (no el mismo, ya fue procesado)
+    await verificarSiguientePalletIncompleto(data.itemIndex + 1);
   } catch (error) {
     console.error('Error al consumir pallet incompleto:', error);
     showError('Error al procesar el pallet incompleto');

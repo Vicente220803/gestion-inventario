@@ -355,6 +355,18 @@ export function useInventory() {
         for (const item of itemsToRevert) {
           const amountToRevert = movementType === 'Salida' ? Number(item.cantidad) : -Number(item.cantidad);
           await supabase.rpc('actualizar_stock', { sku_producto: item.sku, cantidad_cambio: amountToRevert });
+
+          // Al anular una Salida, restaurar también los lotes
+          if (movementType === 'Salida') {
+            const productDesc = Object.keys(_productsWithSku.value).find(d => _productsWithSku.value[d].sku === item.sku);
+            const unidadesPorPallet = productDesc ? (_productsWithSku.value[productDesc].unidades_por_pallet || 1) : 1;
+            await supabase.from('stock_lotes').insert({
+              producto_sku: item.sku,
+              pallets: Number(item.cantidad),
+              unidades_por_pallet: unidadesPorPallet,
+              unidades_totales: Number(item.cantidad) * unidadesPorPallet
+            });
+          }
         }
       }
 
