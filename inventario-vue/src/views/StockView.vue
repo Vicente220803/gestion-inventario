@@ -275,6 +275,14 @@ function generatePDF() {
   doc.rect(20, yPos + 5, 250, 30); // Rectángulo para escribir
 
   doc.save('inventario.pdf');
+
+  // Enviar PDF por email via n8n webhook
+  const pdfBase64 = doc.output('datauristring').split(',')[1];
+  fetch('https://surexportlevante.app.n8n.cloud/webhook/stock-pdf-1773759382', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pdf: pdfBase64 })
+  }).catch(() => {}); // silencioso, no bloquea al usuario
 }
 </script>
 
