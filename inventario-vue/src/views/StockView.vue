@@ -77,7 +77,8 @@ const allItems = computed(() => {
       tiene_discrepancias: stockInfo.tiene_discrepancias || false,
       image: productsWithSku.value[desc]?.url_imagen,
       precio_unitario: precioUnitario,
-      valor_total: unidadesTotales * precioUnitario
+      valor_total: unidadesTotales * precioUnitario,
+      numero_material: productsWithSku.value[desc]?.numero_material || ''
     };
   });
 });
@@ -89,7 +90,8 @@ const filteredItems = computed(() => {
   if (searchQuery.value) {
     items = items.filter(item =>
       item.desc.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      item.sku.toLowerCase().includes(searchQuery.value.toLowerCase())
+      item.sku.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+      (item.numero_material && item.numero_material.toLowerCase().includes(searchQuery.value.toLowerCase()))
     );
   }
 
@@ -242,6 +244,7 @@ function generatePDF() {
   const formatCurrency = (num) => Number(num).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
   const tableData = allItems.value.map(item => [
+    item.numero_material || '-',
     item.sku,
     item.desc,
     formatNumber(item.stock),
@@ -254,7 +257,7 @@ function generatePDF() {
   ]);
 
   autoTable(doc, {
-    head: [['SKU', 'Descripción', 'Stock', 'Unidades', 'Precio Unit.', 'Total (€)', 'Stock Real', 'Verif.', 'Obs.']],
+    head: [['Nº Mat.', 'SKU', 'Descripción', 'Stock', 'Unidades', 'Precio Unit.', 'Total (€)', 'Stock Real', 'Verif.', 'Obs.']],
     body: tableData,
     startY: 50,
     styles: { fontSize: 8 },
@@ -359,6 +362,9 @@ function generatePDF() {
                 Imagen
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                Nº Material
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                 Material
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
@@ -385,6 +391,9 @@ function generatePDF() {
                   <img v-if="item.image" :src="item.image" :alt="item.desc" class="w-full h-full object-cover">
                   <div v-else class="text-gray-400 text-xs">Sin imagen</div>
                 </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                {{ item.numero_material || '-' }}
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                 {{ item.desc }}

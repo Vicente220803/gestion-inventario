@@ -88,9 +88,11 @@ function updateSku(item) {
     }
     item.sku = productData.sku;
     item.url_imagen = productData.url_imagen;
+    item.numero_material = productData.numero_material || '';
   } else {
     item.sku = '';
     item.url_imagen = null;
+    item.numero_material = '';
   }
 }
 watch(fechaPedido, (nuevaFecha) => {
@@ -176,7 +178,7 @@ async function procesarPedido() {
           ${imageUrl ? `<img src="${imageUrl}" alt="Imagen del producto" width="70" style="display: block; border-radius: 8px;">` : ''}
         </td>
         <td style="padding: 10px; vertical-align: middle; font-family: Arial, sans-serif; font-size: 14px;">
-          ${item.cantidad} x ${item.desc} (SKU: ${item.sku})
+          ${item.cantidad} x ${item.desc}${item.numero_material ? ` (Nº Mat: ${item.numero_material})` : ''} (SKU: ${item.sku})
         </td>
       </tr>
     `;
@@ -359,7 +361,11 @@ async function handleNotificationConfirm(modifiedDate) {
             </div>
           </div>
           <div class="md:col-span-1 col-span-1"><label class="block text-xs font-medium text-gray-500">Descripción</label><input type="text" list="products" v-model="item.desc" @input="updateSku(item)" placeholder="Escribe para buscar..." class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 border"></div>
-          <div><label class="block text-xs font-medium text-gray-500">SKU</label><input type="text" v-model="item.sku" readonly placeholder="Código" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 bg-gray-100"></div>
+          <div>
+            <label class="block text-xs font-medium text-gray-500">SKU</label>
+            <input type="text" v-model="item.sku" readonly placeholder="Código" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 bg-gray-100">
+            <span v-if="item.numero_material" class="text-xs text-gray-500 mt-1 block">Nº Mat: {{ item.numero_material }}</span>
+          </div>
           <div><label class="block text-xs font-medium text-gray-500">Cantidad</label><input type="number" v-model.number="item.cantidad" min="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 border"></div>
           <div class="flex justify-self-center md:justify-self-end"><button @click="removeItem(index)" class="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-md hover:bg-red-600">Eliminar</button></div>
         </div>

@@ -23,7 +23,7 @@ export function useInventory() {
     console.log('loadFromServer: Iniciando carga de datos...');
     try {
       const [productsRes, stockRes, stockUnidadesRes, movementsRes, pendingRes] = await Promise.all([
-        supabase.from('productos').select('sku, descripcion, url_imagen, unidades_por_pallet, precio_unitario'),
+        supabase.from('productos').select('sku, descripcion, url_imagen, unidades_por_pallet, precio_unitario, numero_material'),
         supabase.from('stock').select('*'),
         supabase.from('stock_con_unidades').select('*'),
         supabase.from('MOVIMIENTOS').select('*').order('created_at', { ascending: false }),
@@ -44,7 +44,8 @@ export function useInventory() {
           sku: p.sku,
           url_imagen: imageUrl,
           unidades_por_pallet: p.unidades_por_pallet || 1,
-          precio_unitario: p.precio_unitario || 0
+          precio_unitario: p.precio_unitario || 0,
+          numero_material: p.numero_material || ''
         }];
       }));
 
@@ -93,7 +94,8 @@ export function useInventory() {
         .insert({
           descripcion: productInfo.desc,
           sku: productInfo.sku,
-          unidades_por_pallet: productInfo.unidadesPorPallet || 1
+          unidades_por_pallet: productInfo.unidadesPorPallet || 1,
+          numero_material: productInfo.numeroMaterial || null
         })
         .select()
         .single();

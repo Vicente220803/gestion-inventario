@@ -25,8 +25,9 @@ Schema: public | Tabla: notifications
   - user_id (uuid) NOT NULL
 Schema: public | Tabla: productos
   - sku (text) NOT NULL
-  - descripcion (text) 
-  - url_imagen (text) 
+  - descripcion (text)
+  - url_imagen (text)
+  - numero_material (text)
 Schema: public | Tabla: profiles
   - id (uuid) NOT NULL
   - created_at (timestamp with time zone) NOT NULL

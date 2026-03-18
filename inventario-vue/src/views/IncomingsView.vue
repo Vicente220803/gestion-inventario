@@ -101,7 +101,10 @@ async function handleManualSubmit() {
         </datalist>
         <div v-for="(item, index) in manualItems" :key="index" class="grid grid-cols-1 md:grid-cols-7 gap-2 items-center p-3 bg-white rounded border">
           <input type="text" v-model="item.desc" list="materials" @change="updateManualSku(item)" placeholder="Buscar o seleccionar material" class="md:col-span-2 mt-1 block w-full p-2 border rounded-md" />
-          <input type="text" :value="item.sku" readonly placeholder="SKU" class="mt-1 block w-full p-2 border rounded-md bg-gray-100 text-gray-500 text-sm" />
+          <div>
+            <input type="text" :value="item.sku" readonly placeholder="SKU" class="mt-1 block w-full p-2 border rounded-md bg-gray-100 text-gray-500 text-sm" />
+            <span v-if="productsWithSku[item.desc]?.numero_material" class="text-xs text-gray-500 mt-1 block">Nº Mat: {{ productsWithSku[item.desc]?.numero_material }}</span>
+          </div>
           <input type="number" v-model.number="item.cantidad" placeholder="Pallets" class="mt-1 block w-full p-2 border rounded-md" />
           <div class="relative">
             <input

@@ -18,7 +18,8 @@ const newProduct = ref({
   desc: '',
   sku: '',
   stockInicial: 0,
-  unidadesPorPallet: 1
+  unidadesPorPallet: 1,
+  numeroMaterial: ''
 });
 
 function handleAddProduct() {
@@ -34,7 +35,7 @@ function handleAddProduct() {
   // (En un paso posterior, moveremos el toast dentro de la propia función addProduct)
   addProduct(newProduct.value);
 
-  newProduct.value = { desc: '', sku: '', stockInicial: 0, unidadesPorPallet: 1 };
+  newProduct.value = { desc: '', sku: '', stockInicial: 0, unidadesPorPallet: 1, numeroMaterial: '' };
 }
 
 function handleDeleteProduct(productSku, productDesc) {
@@ -97,6 +98,10 @@ async function saveUnidades(sku) {
           <label for="unitsPerPallet" class="block text-sm font-medium text-gray-700">Unidades por Pallet</label>
           <input type="number" id="unitsPerPallet" v-model.number="newProduct.unidadesPorPallet" min="1" placeholder="Ej: 100" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 border">
         </div>
+        <div>
+          <label for="numeroMaterial" class="block text-sm font-medium text-gray-700">Nº Material</label>
+          <input type="text" id="numeroMaterial" v-model="newProduct.numeroMaterial" placeholder="Ej: 12345" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 border">
+        </div>
       </div>
       <div class="flex justify-end mt-6">
         <button @click="handleAddProduct" class="px-6 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700">
@@ -116,7 +121,7 @@ async function saveUnidades(sku) {
         >
           <div class="flex-1">
             <p class="font-medium text-gray-800">{{ desc }}</p>
-            <p class="text-xs text-gray-500">SKU: {{ product.sku }}</p>
+            <p class="text-xs text-gray-500">SKU: {{ product.sku }}<span v-if="product.numero_material"> | Nº Material: {{ product.numero_material }}</span></p>
 
             <!-- Modo de visualización normal -->
             <div v-if="editingProduct !== product.sku" class="flex items-center gap-2 mt-1">

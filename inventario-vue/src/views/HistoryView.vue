@@ -84,13 +84,14 @@ async function sendModificationEmail(movementData) {
   for (const item of movementData.items) {
     const productInfo = Object.values(productsWithSku.value).find(p => p.sku === item.sku);
     const imageUrl = productInfo?.url_imagen || '';
+    const numMaterial = productInfo?.numero_material || '';
     articulos += `
       <tr style="border-bottom: 1px solid #dddddd;">
         <td style="padding: 10px; text-align: left;">
           ${imageUrl ? `<img src="${imageUrl}" alt="Imagen del producto" width="70" style="display: block; border-radius: 8px;">` : ''}
         </td>
         <td style="padding: 10px; vertical-align: middle; font-family: Arial, sans-serif; font-size: 14px;">
-          ${item.cantidad} x ${item.desc} (SKU: ${item.sku})
+          ${item.cantidad} x ${item.desc}${numMaterial ? ` (Nº Mat: ${numMaterial})` : ''} (SKU: ${item.sku})
         </td>
       </tr>
     `;
@@ -453,10 +454,10 @@ async function calculateAndExport() {
                 <ul class="list-disc list-inside text-sm text-gray-600">
                   <li v-for="(item, index) in movement.items" :key="index">
                     <span v-if="['Ajuste', 'Recuento Manual'].includes(movement.tipo)">
-                      {{ item.desc }} (SKU: {{ item.sku }}) cambió de <strong>{{ item.cantidad_anterior }}</strong> a <strong>{{ item.cantidad_nueva }}</strong> (Diferencia: {{ item.diferencia }})
+                      {{ item.desc }}<template v-if="productsWithSku[item.desc]?.numero_material"> (Nº Mat: {{ productsWithSku[item.desc]?.numero_material }})</template> (SKU: {{ item.sku }}) cambió de <strong>{{ item.cantidad_anterior }}</strong> a <strong>{{ item.cantidad_nueva }}</strong> (Diferencia: {{ item.diferencia }})
                     </span>
                     <span v-else>
-                      {{ item.cantidad }} x {{ item.desc }} (SKU: {{ item.sku }})
+                      {{ item.cantidad }} x {{ item.desc }}<template v-if="productsWithSku[item.desc]?.numero_material"> (Nº Mat: {{ productsWithSku[item.desc]?.numero_material }})</template> (SKU: {{ item.sku }})
                     </span>
                   </li>
                 </ul>
