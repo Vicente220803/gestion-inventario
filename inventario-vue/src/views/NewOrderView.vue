@@ -170,6 +170,8 @@ async function procesarPedido() {
     // =================== INICIO: CAMBIO CLAVE ===================
     // Como item.url_imagen ya es la URL completa, la usamos directamente.
     const imageUrl = item.url_imagen || '';
+    const unidadesPorPallet = Number(productsWithSku.value[item.desc]?.unidades_por_pallet) || 1;
+    const unidadesTotales = item.cantidad * unidadesPorPallet;
     // =================== FIN: CAMBIO CLAVE ===================
 
     itemsHtml += `
@@ -178,7 +180,7 @@ async function procesarPedido() {
           ${imageUrl ? `<img src="${imageUrl}" alt="Imagen del producto" width="70" style="display: block; border-radius: 8px;">` : ''}
         </td>
         <td style="padding: 10px; vertical-align: middle; font-family: Arial, sans-serif; font-size: 14px;">
-          ${item.cantidad} x ${item.desc}${item.numero_material ? ` (Nº Mat: ${item.numero_material})` : ''} (SKU: ${item.sku})
+          ${item.cantidad} pallets x ${item.desc} = ${unidadesTotales.toLocaleString('es-ES')} unidades${item.numero_material ? ` (Nº Mat: ${item.numero_material})` : ''} (SKU: ${item.sku})
         </td>
       </tr>
     `;
