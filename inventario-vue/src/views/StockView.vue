@@ -78,7 +78,8 @@ const allItems = computed(() => {
       image: productsWithSku.value[desc]?.url_imagen,
       precio_unitario: precioUnitario,
       valor_total: unidadesTotales * precioUnitario,
-      numero_material: productsWithSku.value[desc]?.numero_material || ''
+      numero_material: productsWithSku.value[desc]?.numero_material || '',
+      tipo_pallet: productsWithSku.value[desc]?.tipo_pallet || ''
     };
   });
 });
@@ -247,6 +248,7 @@ function generatePDF() {
     item.numero_material || '-',
     item.sku,
     item.desc,
+    item.tipo_pallet || '-',
     formatNumber(item.stock),
     formatNumber(item.unidades_totales),
     item.precio_unitario > 0 ? formatCurrency(item.precio_unitario) : '-',
@@ -257,7 +259,7 @@ function generatePDF() {
   ]);
 
   autoTable(doc, {
-    head: [['Nº Mat.', 'SKU', 'Descripción', 'Stock', 'Unidades', 'Precio Unit.', 'Total (€)', 'Stock Real', 'Verif.', 'Obs.']],
+    head: [['Nº Mat.', 'SKU', 'Descripción', 'Tipo Pallet', 'Stock', 'Unidades', 'Precio Unit.', 'Total (€)', 'Stock Real', 'Verif.', 'Obs.']],
     body: tableData,
     startY: 50,
     styles: { fontSize: 8 },
@@ -371,6 +373,9 @@ function generatePDF() {
                 SKU
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                Tipo Pallet
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                 Pallets
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
@@ -400,6 +405,9 @@ function generatePDF() {
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                 {{ item.sku }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                {{ item.tipo_pallet || '-' }}
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white font-semibold">
                 {{ item.stock }}
