@@ -52,6 +52,9 @@ const palletIncompletoData = ref({
   cantidadSolicitada: 0
 });
 
+// Nuevo: Guardar detalles de pallets incompletos usados
+const palletIncompletosDetalles = ref({});
+
 // --- 5. DATOS CALCULADOS ---
 const productNames = computed(() => Object.keys(productsWithSku.value));
 
@@ -171,7 +174,23 @@ async function procesarPedido() {
     // Como item.url_imagen ya es la URL completa, la usamos directamente.
     const imageUrl = item.url_imagen || '';
     const unidadesPorPallet = Number(productsWithSku.value[item.desc]?.unidades_por_pallet) || 1;
-    const unidadesTotales = item.cantidad * unidadesPorPallet;
+
+    // Verificar si hay pallets incompletos para este SKU
+    const palletIncompletoInfo = palletIncompletosDetalles.value[item.sku];
+    let unidadesTotales;
+    let detalleUnidades = '';
+
+    if (palletIncompletoInfo) {
+      // Hay pallets incompletos: calcular considerando pallets completos e incompletos
+      const palletsCompletos = item.cantidad - palletIncompletoInfo.palletsIncompletos;
+      const unidadesCompletos = palletsCompletos * unidadesPorPallet;
+      const unidadesIncompletos = palletIncompletoInfo.palletsIncompletos * palletIncompletoInfo.unidadesRealesPallet;
+      unidadesTotales = unidadesCompletos + unidadesIncompletos;
+      detalleUnidades = ` (${palletsCompletos}×${unidadesPorPallet} + ${palletIncompletoInfo.palletsIncompletos}×${palletIncompletoInfo.unidadesRealesPallet})`;
+    } else {
+      // Sin pallets incompletos: cálculo normal
+      unidadesTotales = item.cantidad * unidadesPorPallet;
+    }
     // =================== FIN: CAMBIO CLAVE ===================
 
     itemsHtml += `
@@ -180,7 +199,7 @@ async function procesarPedido() {
           ${imageUrl ? `<img src="${imageUrl}" alt="Imagen del producto" width="70" style="display: block; border-radius: 8px;">` : ''}
         </td>
         <td style="padding: 10px; vertical-align: middle; font-family: Arial, sans-serif; font-size: 14px;">
-          ${item.cantidad} pallets x ${item.desc} = ${unidadesTotales.toLocaleString('es-ES')} unidades${item.numero_material ? ` (Nº Mat: ${item.numero_material})` : ''} (SKU: ${item.sku})
+          ${item.cantidad} pallets x ${item.desc} = ${unidadesTotales.toLocaleString('es-ES')} unidades${detalleUnidades}${item.numero_material ? ` (Nº Mat: ${item.numero_material})` : ''} (SKU: ${item.sku})
         </td>
       </tr>
     `;
@@ -225,6 +244,8 @@ async function procesarPedido() {
     fechaEntrega.value = '';
     comentarios.value = '';
     items.value = [{ id: 0, desc: '', sku: '', cantidad: 1, url_imagen: null }];
+    palletIncompletosUsados.value = [];
+    palletIncompletosDetalles.value = {};
     // Limpiar el borrador guardado
     localStorage.removeItem('newOrderDraft');
   } catch (error) {
@@ -250,6 +271,14 @@ async function handleUsarPalletIncompleto() {
     // por el total de item.cantidad, que no modificamos.
 
     palletIncompletosUsados.value.push(data.desc);
+
+    // Guardar detalles del pallet incompleto para el email
+    palletIncompletosDetalles.value[data.sku] = {
+      desc: data.desc,
+      palletsIncompletos: palletsAConsumir,
+      unidadesRealesPallet: data.loteIncompleto.unidades_por_pallet
+    };
+
     showSuccess(`${palletsAConsumir} pallet(s) incompleto(s) de ${data.desc} serán despachados (${data.loteIncompleto.unidades_por_pallet} uds/pallet)`);
 
     // Continuar verificando el siguiente item (no el mismo, ya fue procesado)
