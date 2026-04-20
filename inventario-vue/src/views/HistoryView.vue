@@ -75,10 +75,9 @@ function handleEdit(movement) {
 }
 
 async function sendModificationEmail(movementData) {
-  const SERVICE_ID = 'service_ii38rc9';
-  const TEMPLATE_ID = 'template_21cuo39';
+  const SERVICE_ID = 'service_kue3u2r';
+  const TEMPLATE_ID = 'template_ljieiyg';
   const PUBLIC_KEY = 'Zkhtkt81X2Q41Fwso';
-  const DESTINATARIOS = ['vicentemarco@surexport.es'];
 
   let articulos = '<table style="width: 100%; border-collapse: collapse;">';
   for (const item of movementData.items) {
@@ -99,13 +98,11 @@ async function sendModificationEmail(movementData) {
   articulos += '</table>';
 
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '-';
-  const formatDateSubject = (d) => d ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-') : '-';
   const totalPallets = movementData.items.reduce((sum, item) => sum + Number(item.cantidad), 0);
 
   const templateParams = {
     fecha_pedido: formatDate(movementData.fechaPedido),
     fecha_entrega: formatDate(movementData.fechaEntrega),
-    fecha_entrega_subject: formatDateSubject(movementData.fechaEntrega),
     modificado_por: profile?.value?.email || profile?.value?.role || 'Usuario',
     articulos,
     total_pallets: totalPallets,
@@ -113,9 +110,7 @@ async function sendModificationEmail(movementData) {
   };
 
   try {
-    for (const email of DESTINATARIOS) {
-      await emailjs.send(SERVICE_ID, TEMPLATE_ID, { ...templateParams, to_email: email }, PUBLIC_KEY);
-    }
+    await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams, PUBLIC_KEY);
   } catch (error) {
     console.error('Error al enviar email de notificación:', error);
   }

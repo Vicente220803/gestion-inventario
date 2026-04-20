@@ -110,9 +110,12 @@ const abrirModal = (entrada) => {
 
   itemsParaProcesar.value = itemsCrudos.map(itemPDF => {
     return {
-      descripcion_pdf: itemPDF.descripcion, 
+      descripcion_pdf: itemPDF.descripcion,
       cantidad: itemPDF.cantidad,
-      sku_seleccionado: encontrarMejorCoincidencia(itemPDF.descripcion) 
+      sku_seleccionado: encontrarMejorCoincidencia(itemPDF.descripcion),
+      todos_completos: true,
+      pallets_incompletos: 0,
+      unidades_incompleto: 0
     };
   });
 };
@@ -121,6 +124,21 @@ const cerrarModal = () => {
   entradaSeleccionada.value = null;
   itemsParaProcesar.value = [];
   numeroPedido.value = '';
+};
+
+const eliminarItem = (index) => {
+  itemsParaProcesar.value.splice(index, 1);
+};
+
+const agregarItem = () => {
+  itemsParaProcesar.value.push({
+    descripcion_pdf: '',
+    cantidad: 0,
+    sku_seleccionado: '',
+    todos_completos: true,
+    pallets_incompletos: 0,
+    unidades_incompleto: 0
+  });
 };
 
 const handleAccept = async () => {
@@ -182,19 +200,55 @@ const handleAccept = async () => {
       }
 
       const [nombreReal, datosReal] = entradaProducto;
+      const unidades_por_pallet_estandar = datosReal.unidades_por_pallet || 1;
+
+      // Construir items: separar completos e incompletos si aplica
+      let itemsMovimiento = [];
+      let totalPallets = 0;
+      let detalleIncompleto = '';
+
+      if (item.todos_completos) {
+        itemsMovimiento.push({
+          desc: nombreReal,
+          sku: datosReal.sku,
+          cantidad: Number(item.cantidad),
+          unidades_por_pallet: unidades_por_pallet_estandar
+        });
+        totalPallets = Number(item.cantidad);
+      } else {
+        const pallets_completos = Number(item.cantidad) - Number(item.pallets_incompletos);
+
+        // Item para pallets completos
+        if (pallets_completos > 0) {
+          itemsMovimiento.push({
+            desc: nombreReal,
+            sku: datosReal.sku,
+            cantidad: pallets_completos,
+            unidades_por_pallet: unidades_por_pallet_estandar
+          });
+        }
+
+        // Item para pallets incompletos
+        if (Number(item.pallets_incompletos) > 0) {
+          itemsMovimiento.push({
+            desc: nombreReal,
+            sku: datosReal.sku,
+            cantidad: Number(item.pallets_incompletos),
+            unidades_por_pallet: Number(item.unidades_incompleto)
+          });
+        }
+
+        totalPallets = Number(item.cantidad);
+        detalleIncompleto = ` | ${Number(item.pallets_incompletos)} pallet(s) incompleto(s) a ${Number(item.unidades_incompleto)} ud`;
+      }
 
       const newMovement = {
         fechaPedido: fechaDocCorregida,
         fechaEntrega: fechaActual,
-        comentarios: `Auto (Prov: ${proveedor}) - Ref: ${albaran}`,
+        comentarios: `Auto (Prov: ${proveedor}) - Ref: ${albaran}${detalleIncompleto}`,
         tipo: 'Entrada',
-        items: [{
-          desc: nombreReal,
-          sku: datosReal.sku,
-          cantidad: Number(item.cantidad),
-          unidades_por_pallet: datosReal.unidades_por_pallet || 1
-        }],
-        pallets: Number(item.cantidad)
+        items: itemsMovimiento,
+        pallets: totalPallets
       };
 
       await addMovement(newMovement, { showToast: false });
@@ -345,7 +399,7 @@ onUnmounted(() => {
         
         <div class="space-y-4 overflow-y-auto mb-6 pr-1 flex-1">
           <div v-for="(item, index) in itemsParaProcesar" :key="index" class="bg-gray-50 p-3 rounded border shadow-sm">
-            
+
             <div class="mb-2">
               <p class="text-xs text-gray-500 font-bold uppercase">Detectado en PDF:</p>
               <p class="text-sm font-bold text-gray-800">{{ item.descripcion_pdf }}</p>
@@ -353,7 +407,7 @@ onUnmounted(() => {
 
             <div class="mb-2">
                <p class="text-xs text-gray-500 font-bold uppercase mb-1">Corresponde a en Inventario:</p>
-               <select 
+               <select
                  v-model="item.sku_seleccionado"
                  class="w-full p-2 text-sm border rounded bg-white focus:ring-2 focus:ring-blue-500 outline-none"
                  :class="{'border-green-500 bg-green-50': item.sku_seleccionado}"
@@ -365,21 +419,88 @@ onUnmounted(() => {
                </select>
             </div>
 
-            <div class="flex items-center justify-end mt-2 border-t pt-2">
-              <label class="text-xs font-bold text-gray-600 mr-2">CANTIDAD:</label>
-              <input
-                type="number"
-                v-model="item.cantidad"
-                class="w-24 p-1 border rounded text-center font-bold text-blue-700"
-                min="0"
-              />
-              <span class="ml-2 text-xs font-bold text-gray-500">PALÉS</span>
+            <div class="flex items-center justify-between mt-2 border-t pt-2 mb-2">
+              <div class="flex items-center gap-4">
+                <div class="flex items-center">
+                  <label class="text-xs font-bold text-gray-600 mr-2">CANTIDAD:</label>
+                  <input
+                    type="number"
+                    v-model.number="item.cantidad"
+                    class="w-24 p-1 border rounded text-center font-bold text-blue-700"
+                    min="0"
+                  />
+                  <span class="ml-2 text-xs font-bold text-gray-500">PALÉS</span>
+                </div>
+              </div>
+              <button
+                @click="eliminarItem(index)"
+                v-if="itemsParaProcesar.length > 1"
+                class="bg-red-500 text-white px-2 py-1 rounded text-sm hover:bg-red-600 font-bold"
+              >
+                ✕ Eliminar
+              </button>
+            </div>
+
+            <div class="bg-white p-2 rounded border border-yellow-200">
+              <p class="text-xs font-bold text-gray-700 mb-2">¿Todos los pallets están completos?</p>
+              <div class="flex gap-4">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    v-model="item.todos_completos"
+                    :value="true"
+                    class="w-4 h-4"
+                  />
+                  <span class="text-sm text-gray-700">Sí, todos completos</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    v-model="item.todos_completos"
+                    :value="false"
+                    class="w-4 h-4"
+                  />
+                  <span class="text-sm text-gray-700">No, hay incompletos</span>
+                </label>
+              </div>
+
+              <div v-if="!item.todos_completos" class="mt-3 p-2 bg-yellow-50 rounded border border-yellow-300 space-y-2">
+                <div class="flex items-center gap-2">
+                  <label class="text-xs font-bold text-gray-600">Pallets incompletos:</label>
+                  <input
+                    type="number"
+                    v-model.number="item.pallets_incompletos"
+                    class="w-16 p-1 border rounded text-center text-sm"
+                    min="0"
+                    :max="item.cantidad"
+                  />
+                </div>
+                <div class="flex items-center gap-2">
+                  <label class="text-xs font-bold text-gray-600">Unidades en incompleto:</label>
+                  <input
+                    type="number"
+                    v-model.number="item.unidades_incompleto"
+                    class="w-20 p-1 border rounded text-center text-sm"
+                    min="0"
+                  />
+                </div>
+                <p class="text-xs text-gray-500 italic">
+                  Ej: 2 pallets a 100 + 1 pallet a 98 = 298 unidades
+                </p>
+              </div>
             </div>
           </div>
-          
+
           <div v-if="itemsParaProcesar.length === 0" class="text-center py-4 text-gray-500">
             No se han encontrado items en el JSON.
           </div>
+
+          <button
+            @click="agregarItem"
+            class="w-full mt-2 py-2 text-sm font-bold text-green-600 bg-green-50 border-2 border-dashed border-green-300 rounded hover:bg-green-100 transition-colors"
+          >
+            + Agregar Línea
+          </button>
         </div>
 
         <!-- Campo número de pedido: solo para clientes con notificación -->
