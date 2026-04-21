@@ -52,13 +52,10 @@ function isNonWorkingDay(date) {
 }
 
 function handleNoTransferOrder() {
-  console.log('handleNoTransferOrder called');
   const nextDate = calculateNextTransferDate();
-  console.log('Calculated next date:', nextDate);
   suggestedDate.value = nextDate.toISOString().slice(0, 10);
   selectedDate.value = suggestedDate.value; // Pre-seleccionar la sugerida
   showDatePicker.value = true;
-  console.log('showDatePicker set to true');
 }
 
 function confirmNoTransferOrder() {
@@ -76,7 +73,6 @@ function confirmNoTransferOrder() {
     return;
   }
   const formattedDate = selected.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  console.log('Fecha de traslado seleccionada:', selectedDate.value, formattedDate);
   showSuccess(`No hay pedido de traslado para ${formattedDate}`);
   showDatePicker.value = false;
   // Aquí podrías agregar lógica adicional, como registrar en logs o notificar

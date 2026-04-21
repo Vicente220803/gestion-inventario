@@ -29,23 +29,16 @@ function handleAddProduct() {
     return;
   }
 
-  console.log('[DEBUG] handleAddProduct: newProduct.value:', newProduct.value);
-  // La función addProduct ya tiene su propio alert, vamos a cambiarlo también en useInventory.js
-  // Por ahora, vamos a modificar la llamada para que muestre el toast desde aquí.
-  // (En un paso posterior, moveremos el toast dentro de la propia función addProduct)
   addProduct(newProduct.value);
 
   newProduct.value = { desc: '', sku: '', stockInicial: 0, unidadesPorPallet: 1, numeroMaterial: '' };
 }
 
 function handleDeleteProduct(productSku, productDesc) {
-  console.log('[DEBUG] handleDeleteProduct called with sku:', productSku, 'desc:', productDesc);
-  // Usar el modal de confirmación personalizado en lugar de confirm()
   showConfirm(
     'Eliminar Material',
     `¿Estás seguro de que quieres eliminar el material "${productDesc}"? Esta acción eliminará permanentemente el material y reducirá el stock total. No se puede deshacer.`,
     () => {
-      console.log('[DEBUG] User confirmed deletion, calling deleteProduct');
       deleteProduct(productSku);
     }
   );

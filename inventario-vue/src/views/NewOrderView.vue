@@ -127,22 +127,16 @@ async function submitOrder() {
   // Verificar si hay pallets incompletos en los items del pedido
   for (let i = 0; i < validItems.length; i++) {
     const item = validItems[i];
-    console.log('[DEBUG] Verificando pallets incompletos para:', item.desc, 'SKU:', item.sku);
     const lotes = await obtenerLotesProducto(item.sku);
-    console.log('[DEBUG] Lotes encontrados:', lotes);
 
     // Buscar si hay algún lote incompleto disponible
     const unidadesEstandar = productsWithSku.value[item.desc]?.unidades_por_pallet || 1;
-    console.log('[DEBUG] Unidades estándar:', unidadesEstandar);
 
     const loteIncompleto = lotes.find(lote => {
-      const esIncompleto = lote.pallets > 0 && lote.unidades_por_pallet < unidadesEstandar;
-      console.log('[DEBUG] Lote ID:', lote.id, 'Pallets:', lote.pallets, 'Uds/pallet:', lote.unidades_por_pallet, 'Es incompleto:', esIncompleto);
-      return esIncompleto;
+      return lote.pallets > 0 && lote.unidades_por_pallet < unidadesEstandar;
     });
 
     if (loteIncompleto && item.cantidad >= 1) {
-      console.log('[DEBUG] ¡Pallet incompleto detectado! Mostrando modal...');
       // Hay un pallet incompleto y el usuario está pidiendo al menos 1 pallet
       palletIncompletoData.value = {
         itemIndex: i,
@@ -156,7 +150,6 @@ async function submitOrder() {
     }
   }
 
-  console.log('[DEBUG] No se encontraron pallets incompletos, procesando pedido normalmente');
   // Si no hay pallets incompletos, proceder normalmente
   procesarPedido();
 }
@@ -337,7 +330,6 @@ function sendNoOrderNotification() {
   isConfirmModalVisible.value = true;
 }
 async function handleNotificationConfirm(modifiedDate) {
-  console.log('[DEBUG] handleNotificationConfirm called with modifiedDate:', modifiedDate);
   isConfirmModalVisible.value = false;
   isSending.value = true;
   const templateParams = { fecha_entrega: modifiedDate };
@@ -348,9 +340,7 @@ async function handleNotificationConfirm(modifiedDate) {
       templateParams,
       import.meta.env.VITE_EMAILJS_PUBLIC_KEY
     );
-    console.log('[DEBUG] Email sent successfully, now registering movement...');
     const registrationDate = new Date().toISOString().slice(0, 10);
-    console.log('[DEBUG] Registration date:', registrationDate, 'Order date (from form):', fechaPedido.value, 'Delivery date (from modal):', modifiedDate);
     await addMovement({
       fechaPedido: fechaPedido.value,
       fechaEntrega: modifiedDate,
@@ -359,7 +349,6 @@ async function handleNotificationConfirm(modifiedDate) {
       items: [],
       tipo: 'Sin Pedido',
     });
-    console.log('[DEBUG] Movement registered successfully with fechaPedido:', fechaPedido.value, 'fechaEntrega:', modifiedDate);
     showInfo('Notificación de sin pedido registrada.');
   } catch (error) {
     console.error('Error de EmailJS o addMovement:', error);

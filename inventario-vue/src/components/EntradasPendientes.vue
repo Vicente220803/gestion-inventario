@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue';
-import { supabase } from '../supabaseClient.js';
+import { supabase } from '../supabase.js';
 import { useInventory } from '@/composables/useInventory';
 import { useToasts } from '@/composables/useToasts';
 

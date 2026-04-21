@@ -109,9 +109,7 @@ const filteredItems = computed(() => {
 const totalPallets = computed(() => {
   // Depend on updateCounter to force re-evaluation
   updateCounter.value;
-  const sum = Object.values(materialStock.value).reduce((sum, qty) => sum + (Number(qty) || 0), 0);
-  console.log('[DEBUG] totalPallets calculated:', sum, 'materialStock:', materialStock.value);
-  return sum;
+  return Object.values(materialStock.value).reduce((sum, qty) => sum + (Number(qty) || 0), 0);
 });
 
 const totalUnidades = computed(() => {

@@ -2,3 +2,7 @@
 .mcp.json
 .env
 .env.*
+
+# Configuración local de Claude Code (puede contener API keys)
+.claude/
+**/.claude/

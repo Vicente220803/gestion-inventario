@@ -6,7 +6,6 @@ import { supabase } from '../supabase';
 const _productsWithSku = ref({});
 const _materialStock = ref({});
 const _stockConUnidades = ref({}); // Nuevo: Stock con información de unidades
-const _stockLotes = ref({}); // Nuevo: Lotes por producto
 const _movements = ref([]);
 const _pendingIncomings = ref([]);
 const hasLoaded = ref(false);
@@ -20,7 +19,6 @@ export function useInventory() {
   async function loadFromServer() {
     if (hasLoaded.value || isLoading.value) return;
     isLoading.value = true;
-    console.log('loadFromServer: Iniciando carga de datos...');
     try {
       const [productsRes, stockRes, stockUnidadesRes, movementsRes, pendingRes] = await Promise.all([
         supabase.from('productos').select('sku, descripcion, url_imagen, unidades_por_pallet, precio_unitario, numero_material, tipo_pallet'),
@@ -69,9 +67,6 @@ export function useInventory() {
         id: m.id, fechaPedido: m.fecha_pedido, fechaEntrega: m.fecha_entrega, pallets: m.pallets, comentarios: m.comentarios, items: m.elementos, tipo: m.tipo, created_at: m.created_at
       }));
       _pendingIncomings.value = pendingRes.data || [];
-      console.log('loadFromServer: Carga de datos completada con éxito.');
-      console.log('[DEBUG] Products loaded:', Object.keys(_productsWithSku.value));
-      console.log('[DEBUG] Stock con unidades loaded:', _stockConUnidades.value);
       updateCounter.value++;
       hasLoaded.value = true;
 
@@ -88,15 +83,33 @@ export function useInventory() {
   }
 
   async function addProduct(productInfo) {
-    console.log('[DEBUG] addProduct called with productInfo:', productInfo);
+    // Validación de entrada
+    const desc = String(productInfo.desc || '').trim();
+    const sku = String(productInfo.sku || '').trim();
+    const unidadesPorPallet = Number(productInfo.unidadesPorPallet) || 1;
+    const stockInicial = Number(productInfo.stockInicial) || 0;
+
+    if (!desc || !sku) {
+      showError('La descripción y el SKU son obligatorios.');
+      return;
+    }
+    if (unidadesPorPallet < 1) {
+      showError('Las unidades por pallet deben ser al menos 1.');
+      return;
+    }
+    if (stockInicial < 0) {
+      showError('El stock inicial no puede ser negativo.');
+      return;
+    }
+
     try {
       const { data: productData, error: productError } = await supabase
         .from('productos')
         .insert({
-          descripcion: productInfo.desc,
-          sku: productInfo.sku,
-          unidades_por_pallet: productInfo.unidadesPorPallet || 1,
-          numero_material: productInfo.numeroMaterial || null
+          descripcion: desc,
+          sku: sku,
+          unidades_por_pallet: unidadesPorPallet,
+          numero_material: productInfo.numeroMaterial ? String(productInfo.numeroMaterial).trim() : null
         })
         .select()
         .single();
@@ -107,7 +120,7 @@ export function useInventory() {
         .from('stock')
         .upsert({
           producto_sku: productData.sku,
-          cantidad: productInfo.stockInicial
+          cantidad: stockInicial
         }, { onConflict: 'producto_sku' });
 
       if (stockError) {
@@ -116,14 +129,14 @@ export function useInventory() {
       }
 
       // Crear lote inicial si hay stock
-      if (productInfo.stockInicial > 0) {
+      if (stockInicial > 0) {
         const { error: loteError } = await supabase
           .from('stock_lotes')
           .insert({
             producto_sku: productData.sku,
-            pallets: productInfo.stockInicial,
-            unidades_por_pallet: productInfo.unidadesPorPallet || 1,
-            unidades_totales: productInfo.stockInicial * (productInfo.unidadesPorPallet || 1)
+            pallets: stockInicial,
+            unidades_por_pallet: unidadesPorPallet,
+            unidades_totales: stockInicial * unidadesPorPallet
           });
 
         if (loteError) {
@@ -147,8 +160,6 @@ export function useInventory() {
   }
 
   async function deleteProduct(productSku) {
-    console.log('[DEBUG] deleteProduct called with sku:', productSku);
-    console.log('[DEBUG] Checking if product exists...');
     const { data: existingProduct, error: checkError } = await supabase
       .from('productos')
       .select('sku, descripcion')
@@ -156,14 +167,12 @@ export function useInventory() {
       .single();
 
     if (checkError || !existingProduct) {
-      console.error('[DEBUG] Product not found or error checking existence:', checkError);
       showError('Producto no encontrado.');
       return;
     }
-    console.log('[DEBUG] Product exists, proceeding with deletion.');
 
     // Obtener la cantidad actual de stock antes de borrar
-    const { data: stockData, error: stockCheckError } = await supabase
+    const { data: stockData } = await supabase
       .from('stock')
       .select('cantidad')
       .eq('producto_sku', productSku)
@@ -172,29 +181,23 @@ export function useInventory() {
     const currentStock = stockData ? Number(stockData.cantidad) : 0;
 
     try {
-      console.log('[DEBUG] Deleting from stock table...');
       const { error: stockError } = await supabase
         .from('stock')
         .delete()
         .eq('producto_sku', productSku);
 
       if (stockError && stockError.code !== 'PGRST204') {
-        console.error('[DEBUG] Error deleting from stock:', stockError);
         throw stockError;
       }
-      console.log('[DEBUG] Stock deletion successful or no stock found.');
 
-      console.log('[DEBUG] Deleting from productos table...');
       const { error: productError } = await supabase
         .from('productos')
         .delete()
         .eq('sku', productSku);
 
       if (productError) {
-        console.error('[DEBUG] Error deleting from productos:', productError);
         throw productError;
       }
-      console.log('[DEBUG] Product deletion successful.');
 
       // Registrar movimiento de eliminación si había stock
       if (currentStock > 0) {
@@ -207,23 +210,19 @@ export function useInventory() {
           tipo: 'Eliminación',
         };
         await addMovement(deleteMovementData);
-        console.log('[DEBUG] Deletion movement registered.');
       }
 
       showSuccess('Material borrado con éxito.');
       showInfo('Material eliminado del inventario.');
       hasLoaded.value = false;
       await loadFromServer();
-      console.log('[DEBUG] Data reloaded after deletion.');
-      console.log('[DEBUG] materialStock after delete:', _materialStock.value);
 
     } catch (error) {
       if (error.code === '23503') {
         showError('Error: Este material no se puede borrar porque tiene movimientos en el historial.');
-        console.log('[DEBUG] Deletion blocked due to foreign key constraint.');
       } else {
         showError('No se pudo borrar el material.');
-        console.error('[DEBUG] Unexpected error in deleteProduct:', error);
+        console.error('Error en deleteProduct:', error);
       }
     }
   }
@@ -421,7 +420,6 @@ export function useInventory() {
   }
 
   async function updateUnidadesPorPallet(sku, newUnidades) {
-    console.log('[DEBUG] updateUnidadesPorPallet called with sku:', sku, 'newUnidades:', newUnidades);
     try {
       // Actualizar en tabla productos
       const { error: updateError } = await supabase
