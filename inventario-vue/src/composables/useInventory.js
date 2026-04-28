@@ -370,6 +370,20 @@ export function useInventory() {
             });
           }
         }
+      } else if (movementType === 'Ajuste' || movementType === 'Recuento Manual') {
+        // Revertir ajustes manuales: volver el stock a la cantidad anterior de cada SKU
+        const itemsRevertibles = (itemsToRevert || []).filter(i => i.cantidad_anterior !== undefined && i.cantidad_anterior !== null);
+        if (itemsRevertibles.length > 0) {
+          await Promise.all(itemsRevertibles.map(item =>
+            supabase.from('stock').upsert(
+              { producto_sku: item.sku, cantidad: Number(item.cantidad_anterior) },
+              { onConflict: 'producto_sku' }
+            )
+          ));
+        } else if ((itemsToRevert || []).length > 0) {
+          // Caso "📦 Ajustar Unidades": no guardamos estado anterior de los lotes, no se puede revertir limpiamente
+          showError('Este ajuste de unidades no se puede revertir automáticamente. El movimiento fue eliminado del historial pero el stock no cambia.');
+        }
       }
 
       // No mostrar notificación de éxito para evitar spam
