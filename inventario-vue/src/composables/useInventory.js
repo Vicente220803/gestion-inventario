@@ -297,8 +297,7 @@ export function useInventory() {
   async function recordManualInventoryCount(newStockCounts, reason) {
     try {
       const currentStock = _materialStock.value;
-      const itemsToUpdate = [];
-      const movementItems = [];
+      const ajustes = [];
 
       for (const sku in newStockCounts) {
         const newQuantity = Number(newStockCounts[sku]);
@@ -308,44 +307,30 @@ export function useInventory() {
           const productDesc = Object.keys(_productsWithSku.value).find(
             desc => _productsWithSku.value[desc].sku === sku
           ) || 'SKU Desconocido';
-          
-          itemsToUpdate.push({ sku, newQuantity });
-          movementItems.push({ sku, desc: productDesc, cantidad_anterior: oldQuantity, cantidad_nueva: newQuantity, diferencia: newQuantity - oldQuantity });
+
+          ajustes.push({ sku, desc: productDesc, oldQuantity, newQuantity });
         }
       }
 
-      if (itemsToUpdate.length === 0) {
-        showSuccess('No se detectaron cambios en el stock.');
+      if (ajustes.length === 0) {
+        showInfo('No se detectaron cambios en el stock.');
         return;
       }
 
-      const stockUpdatePromises = itemsToUpdate.map(item =>
-        supabase.from('stock').upsert({ producto_sku: item.sku, cantidad: item.newQuantity }, { onConflict: 'producto_sku' })
-      );
-      await Promise.all(stockUpdatePromises);
-
-      const { error: insertError } = await supabase.from('MOVIMIENTOS').insert([{
-        fecha_pedido: new Date().toISOString().slice(0, 10),
-        fecha_entrega: new Date().toISOString().slice(0, 10),
-        comentarios: reason,
-        tipo: 'Ajuste',
-        elementos: movementItems,
-        pallets: 0,
-      }]);
-      if (insertError) {
-        showError('¡Atención! El stock se actualizó, pero falló el registro en el historial.');
-        throw insertError;
-      }
+      const { error } = await supabase.rpc('registrar_ajuste_inventario', {
+        ajustes,
+        motivo: reason
+      });
+      if (error) throw error;
 
       showSuccess('Ajuste de inventario registrado con éxito.');
-      showInfo('Inventario actualizado manualmente.');
       hasLoaded.value = false;
       await loadFromServer();
-      
+
     } catch (error) {
       showError('No se pudo completar el ajuste de inventario.');
       console.error("Error en recordManualInventoryCount:", error);
-    } 
+    }
   }
 
   async function deleteMovement(movementId, movementType, itemsToRevert) {
@@ -371,8 +356,24 @@ export function useInventory() {
           }
         }
       } else if (movementType === 'Ajuste' || movementType === 'Recuento Manual') {
-        // Revertir ajustes manuales: volver el stock a la cantidad anterior de cada SKU
-        const itemsRevertibles = (itemsToRevert || []).filter(i => i.cantidad_anterior !== undefined && i.cantidad_anterior !== null);
+        const items = itemsToRevert || [];
+
+        // Caso "📦 Ajustar Unidades": tiene snapshot de lotes_anteriores
+        const itemsConLotes = items.filter(i => Array.isArray(i.lotes_anteriores));
+        if (itemsConLotes.length > 0) {
+          for (const item of itemsConLotes) {
+            const { error: rpcError } = await supabase.rpc('revertir_ajuste_unidades', {
+              sku_producto: item.sku,
+              lotes_anteriores: item.lotes_anteriores
+            });
+            if (rpcError) throw rpcError;
+          }
+        }
+
+        // Caso "Recuento Manual" estándar: revertir cantidad
+        const itemsRevertibles = items.filter(i =>
+          i.cantidad_anterior !== undefined && i.cantidad_anterior !== null
+        );
         if (itemsRevertibles.length > 0) {
           await Promise.all(itemsRevertibles.map(item =>
             supabase.from('stock').upsert(
@@ -380,9 +381,6 @@ export function useInventory() {
               { onConflict: 'producto_sku' }
             )
           ));
-        } else if ((itemsToRevert || []).length > 0) {
-          // Caso "📦 Ajustar Unidades": no guardamos estado anterior de los lotes, no se puede revertir limpiamente
-          showError('Este ajuste de unidades no se puede revertir automáticamente. El movimiento fue eliminado del historial pero el stock no cambia.');
         }
       }
 
@@ -499,84 +497,24 @@ export function useInventory() {
       ) || 'Producto Desconocido';
 
       const unidadesEstandar = _productsWithSku.value[productDesc]?.unidades_por_pallet || 1;
-      const stockActual = _materialStock.value[sku] || 0;
-      const totalPallets = palletsCompletos + palletsIncompletos;
-
-      // Validaciones
-      if (totalPallets !== stockActual) {
-        showError(`El total de pallets (${totalPallets}) no coincide con el stock actual (${stockActual})`);
-        return;
-      }
 
       if (palletsIncompletos > 0 && unidadesPalletsIncompletos >= unidadesEstandar) {
         showError('Los pallets incompletos deben tener menos unidades que el estándar');
         return;
       }
 
-      // Eliminar lotes antiguos de este producto
-      const { error: deleteError } = await supabase
-        .from('stock_lotes')
-        .delete()
-        .eq('producto_sku', sku);
-
-      if (deleteError) throw deleteError;
-
-      // Crear nuevos lotes que reflejen la realidad
-      const lotesNuevos = [];
-
-      // Lote de pallets completos (si hay)
-      if (palletsCompletos > 0) {
-        lotesNuevos.push({
-          producto_sku: sku,
-          pallets: palletsCompletos,
-          unidades_por_pallet: unidadesEstandar,
-          unidades_totales: palletsCompletos * unidadesEstandar,
-          movimiento_id: null
-        });
-      }
-
-      // Lote de pallets incompletos (si hay)
-      if (palletsIncompletos > 0) {
-        lotesNuevos.push({
-          producto_sku: sku,
-          pallets: palletsIncompletos,
-          unidades_por_pallet: unidadesPalletsIncompletos,
-          unidades_totales: palletsIncompletos * unidadesPalletsIncompletos,
-          movimiento_id: null
-        });
-      }
-
-      // Insertar nuevos lotes
-      const { error: insertError } = await supabase
-        .from('stock_lotes')
-        .insert(lotesNuevos);
-
-      if (insertError) throw insertError;
-
-      // Registrar movimiento de ajuste
-      const unidadesAntes = stockActual * unidadesEstandar;
-      const unidadesDespues = (palletsCompletos * unidadesEstandar) + (palletsIncompletos * unidadesPalletsIncompletos);
-      const diferenciaUnidades = unidadesDespues - unidadesAntes;
-
-      await supabase.from('MOVIMIENTOS').insert([{
-        fecha_pedido: new Date().toISOString().slice(0, 10),
-        fecha_entrega: new Date().toISOString().slice(0, 10),
-        comentarios: `${motivo} | ${productDesc}: ${palletsCompletos} pallets completos (${unidadesEstandar} uds/pallet) + ${palletsIncompletos} pallets incompletos (${unidadesPalletsIncompletos} uds/pallet) | Diferencia: ${diferenciaUnidades > 0 ? '+' : ''}${diferenciaUnidades} unidades`,
-        tipo: 'Ajuste',
-        elementos: [{
-          sku,
-          desc: productDesc,
-          cantidad: stockActual,
-          unidades_antes: unidadesAntes,
-          unidades_despues: unidadesDespues,
-          diferencia_unidades: diferenciaUnidades
-        }],
-        pallets: 0,
-      }]);
+      const { error } = await supabase.rpc('ajustar_unidades_reales_atomico', {
+        sku_producto: sku,
+        pallets_completos: palletsCompletos,
+        pallets_incompletos: palletsIncompletos,
+        unidades_pallets_incompletos: unidadesPalletsIncompletos,
+        unidades_estandar: unidadesEstandar,
+        motivo,
+        desc_producto: productDesc
+      });
+      if (error) throw error;
 
       showSuccess('Ajuste de unidades reales registrado correctamente.');
-      showInfo(`${productDesc}: ${diferenciaUnidades > 0 ? '+' : ''}${diferenciaUnidades} unidades ajustadas`);
-
       hasLoaded.value = false;
       await loadFromServer();
 

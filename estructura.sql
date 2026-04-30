@@ -1,5 +1,5 @@
 --- INFORME DE ESTRUCTURA DE BASE DE DATOS ---
---- Actualizado: 2026-04-21 ---
+--- Actualizado: 2026-04-30 ---
 
 --- TABLAS ---
 
@@ -178,6 +178,39 @@ BEGIN
   RETURN NEW;
 END;
 $function$
+
+-- Ajuste de inventario atómico (recuento manual desde StockView):
+--   actualiza stock e inserta movimiento en una sola transacción.
+CREATE OR REPLACE FUNCTION public.registrar_ajuste_inventario(
+  ajustes jsonb,    -- [{sku, desc, oldQuantity, newQuantity}, ...]
+  motivo text
+) RETURNS bigint
+ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public'
+-- (cuerpo en registrar_ajuste_atomico.sql)
+
+-- Ajuste de unidades reales (📦 Ajustar Unidades) atómico,
+-- guarda snapshot de lotes_anteriores en MOVIMIENTOS.elementos.
+CREATE OR REPLACE FUNCTION public.ajustar_unidades_reales_atomico(
+  sku_producto text,
+  pallets_completos integer,
+  pallets_incompletos integer,
+  unidades_pallets_incompletos integer,
+  unidades_estandar integer,
+  motivo text,
+  desc_producto text
+) RETURNS bigint
+ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public'
+-- (cuerpo en registrar_ajuste_atomico.sql)
+
+-- Revertir un ajuste de unidades reales restaurando los lotes
+-- desde el snapshot guardado.
+CREATE OR REPLACE FUNCTION public.revertir_ajuste_unidades(
+  sku_producto text,
+  lotes_anteriores jsonb
+) RETURNS void
+ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public'
+-- (cuerpo en registrar_ajuste_atomico.sql)
+
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
  RETURNS trigger

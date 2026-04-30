@@ -2,7 +2,8 @@
 import { ref, computed, onMounted } from 'vue';
 import { useInventory } from '../composables/useInventory';
 import { useConfirm } from '../composables/useConfirm';
-import { profile } from '../authState'; // <-- CORRECCIÓN: Importamos desde authState
+import { useToasts } from '../composables/useToasts';
+import { profile } from '../authState';
 import { MagnifyingGlassIcon, FunnelIcon } from '@heroicons/vue/24/outline';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -19,7 +20,11 @@ const {
   ajustarUnidadesReales
 } = useInventory();
 const { showConfirm } = useConfirm();
-// const { profile } = useAuth(); // <-- LÍNEA ELIMINADA
+const { showError } = useToasts();
+
+const isSavingStock = ref(false);
+const isSavingAjuste = ref(false);
+const isSavingUnidades = ref(false);
 
 const isModalVisible = ref(false);
 const editedStock = ref({});
@@ -131,7 +136,7 @@ function openAdjustmentModal() {
 
 function handleSaveStock() {
   if (!adjustmentReason.value.trim()) {
-    alert('El motivo del ajuste es obligatorio.');
+    showError('El motivo del ajuste es obligatorio.');
     return;
   }
 
@@ -139,9 +144,13 @@ function handleSaveStock() {
     'Confirmar Ajuste de Inventario',
     '¿Estás seguro de que quieres guardar este recuento? La acción se registrará en el historial y no se puede deshacer.',
     async () => {
-      await recordManualInventoryCount(editedStock.value, adjustmentReason.value);
-      await loadFromServer();
-      isModalVisible.value = false;
+      isSavingStock.value = true;
+      try {
+        await recordManualInventoryCount(editedStock.value, adjustmentReason.value);
+        isModalVisible.value = false;
+      } finally {
+        isSavingStock.value = false;
+      }
     }
   );
 }
@@ -166,13 +175,18 @@ function cancelEditingUnidades() {
 async function saveUnidades(sku) {
   const newUnidades = editingUnidades.value[sku];
   if (!newUnidades || newUnidades <= 0) {
-    alert('Las unidades por pallet deben ser mayor que 0');
+    showError('Las unidades por pallet deben ser mayor que 0');
     return;
   }
 
-  await updateUnidadesPorPallet(sku, newUnidades);
-  editingProduct.value = null;
-  editingUnidades.value = {};
+  isSavingUnidades.value = true;
+  try {
+    await updateUnidadesPorPallet(sku, newUnidades);
+    editingProduct.value = null;
+    editingUnidades.value = {};
+  } finally {
+    isSavingUnidades.value = false;
+  }
 }
 
 function abrirModalAjuste(item) {
@@ -204,29 +218,33 @@ const unidadesTotalesCalculadas = computed(() => {
 
 async function guardarAjusteUnidades() {
   if (totalPalletsAjuste.value !== ajusteData.value.stockTotal) {
-    alert(`El total de pallets (${totalPalletsAjuste.value}) debe ser igual al stock actual (${ajusteData.value.stockTotal})`);
+    showError(`El total de pallets (${totalPalletsAjuste.value}) debe ser igual al stock actual (${ajusteData.value.stockTotal})`);
     return;
   }
 
   if (ajusteData.value.palletsIncompletos > 0 && ajusteData.value.unidadesPalletsIncompletos <= 0) {
-    alert('Debes especificar las unidades reales de los pallets incompletos');
+    showError('Debes especificar las unidades reales de los pallets incompletos');
     return;
   }
 
   if (ajusteData.value.palletsIncompletos > 0 && ajusteData.value.unidadesPalletsIncompletos >= ajusteData.value.unidadesEstandar) {
-    alert('Los pallets incompletos deben tener menos unidades que el estándar');
+    showError('Los pallets incompletos deben tener menos unidades que el estándar');
     return;
   }
 
-  await ajustarUnidadesReales(
-    ajusteData.value.sku,
-    ajusteData.value.palletsCompletos,
-    ajusteData.value.palletsIncompletos,
-    ajusteData.value.unidadesPalletsIncompletos,
-    ajusteData.value.motivo
-  );
-
-  isAjusteModalVisible.value = false;
+  isSavingAjuste.value = true;
+  try {
+    await ajustarUnidadesReales(
+      ajusteData.value.sku,
+      ajusteData.value.palletsCompletos,
+      ajusteData.value.palletsIncompletos,
+      ajusteData.value.unidadesPalletsIncompletos,
+      ajusteData.value.motivo
+    );
+    isAjusteModalVisible.value = false;
+  } finally {
+    isSavingAjuste.value = false;
+  }
 }
 
 function generatePDF() {
@@ -438,7 +456,8 @@ function generatePDF() {
                   />
                   <button
                     @click="saveUnidades(item.sku)"
-                    class="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                    :disabled="isSavingUnidades"
+                    class="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                     title="Guardar"
                   >
                     ✓
@@ -509,9 +528,10 @@ function generatePDF() {
           </button>
           <button
             @click="handleSaveStock"
-            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            :disabled="isSavingStock"
+            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            Guardar Cambios
+            {{ isSavingStock ? 'Guardando…' : 'Guardar Cambios' }}
           </button>
         </div>
       </div>
@@ -618,15 +638,15 @@ function generatePDF() {
           </button>
           <button
             @click="guardarAjusteUnidades"
-            :disabled="totalPalletsAjuste !== ajusteData.stockTotal"
+            :disabled="totalPalletsAjuste !== ajusteData.stockTotal || isSavingAjuste"
             :class="[
               'px-4 py-2 rounded-lg transition-colors',
-              totalPalletsAjuste === ajusteData.stockTotal
+              totalPalletsAjuste === ajusteData.stockTotal && !isSavingAjuste
                 ? 'bg-purple-600 hover:bg-purple-700 text-white'
                 : 'bg-gray-400 text-gray-200 cursor-not-allowed'
             ]"
           >
-            Guardar Ajuste
+            {{ isSavingAjuste ? 'Guardando…' : 'Guardar Ajuste' }}
           </button>
         </div>
       </div>
