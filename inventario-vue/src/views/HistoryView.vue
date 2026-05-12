@@ -16,8 +16,54 @@ const { showSuccess, showInfo } = useToasts();
 const startDate = ref('');
 const endDate = ref('');
 const selectedTipo = ref(''); // Filtro por tipo de movimiento
+const selectedSkus = ref([]); // Filtro multi-producto (por SKU)
+const productoToAdd = ref('');
 
 const tiposMovimiento = ['Entrada', 'Salida', 'Ajuste', 'Recuento Manual', 'Sin Pedido'];
+
+const productOptions = computed(() =>
+  Object.entries(productsWithSku.value)
+    .map(([desc, info]) => ({ sku: info.sku, desc }))
+    .sort((a, b) => a.desc.localeCompare(b.desc))
+);
+
+const skuToDesc = computed(() => {
+  const map = {};
+  for (const desc in productsWithSku.value) {
+    map[productsWithSku.value[desc].sku] = desc;
+  }
+  return map;
+});
+
+function addProductoFilter() {
+  const input = productoToAdd.value.trim();
+  if (!input) return;
+
+  const q = input.toLowerCase();
+
+  // 1) Si hay coincidencia exacta por desc o SKU → añade solo ese
+  const exact = productOptions.value.find(
+    o => o.desc.toLowerCase() === q || o.sku.toLowerCase() === q
+  );
+  if (exact) {
+    if (!selectedSkus.value.includes(exact.sku)) selectedSkus.value.push(exact.sku);
+    productoToAdd.value = '';
+    return;
+  }
+
+  // 2) Si no, añade TODOS los productos cuya desc o SKU contenga el texto
+  const matches = productOptions.value.filter(
+    o => o.desc.toLowerCase().includes(q) || o.sku.toLowerCase().includes(q)
+  );
+  for (const m of matches) {
+    if (!selectedSkus.value.includes(m.sku)) selectedSkus.value.push(m.sku);
+  }
+  productoToAdd.value = '';
+}
+
+function removeProductoFilter(sku) {
+  selectedSkus.value = selectedSkus.value.filter(s => s !== sku);
+}
 
 // Estado para el modal de edición
 const isEditModalVisible = ref(false);
@@ -34,6 +80,12 @@ const filteredMovements = computed(() => {
   // Filtrar por tipo de movimiento
   if (selectedTipo.value) {
     movs = movs.filter(m => m.tipo === selectedTipo.value);
+  }
+  // Filtrar por productos seleccionados (cualquiera de ellos)
+  if (selectedSkus.value.length > 0) {
+    movs = movs.filter(m =>
+      Array.isArray(m.items) && m.items.some(i => selectedSkus.value.includes(i.sku))
+    );
   }
   // Filtrar por rango de fechas
   if (startDate.value && endDate.value) {
@@ -431,6 +483,50 @@ async function calculateAndExport() {
       >
         {{ tipo }}
       </button>
+    </div>
+
+    <!-- Filtro por productos (multi-selección) -->
+    <div class="p-3 bg-gray-50 rounded-lg border space-y-2">
+      <div class="flex flex-col md:flex-row md:items-center gap-2">
+        <label class="text-sm font-medium text-gray-700 whitespace-nowrap">Filtrar por productos:</label>
+        <input
+          type="text"
+          list="history-product-filter-list"
+          v-model="productoToAdd"
+          @change="addProductoFilter"
+          @keyup.enter="addProductoFilter"
+          placeholder="Escribe nombre o SKU…"
+          class="flex-1 p-2 border border-gray-300 rounded-md bg-white text-sm"
+        >
+        <datalist id="history-product-filter-list">
+          <option
+            v-for="opt in productOptions"
+            :key="opt.sku"
+            :value="opt.desc"
+          >{{ opt.sku }}</option>
+        </datalist>
+        <button
+          v-if="selectedSkus.length > 0"
+          @click="selectedSkus = []"
+          class="text-xs text-gray-600 hover:text-gray-800 underline whitespace-nowrap"
+        >
+          Limpiar filtro
+        </button>
+      </div>
+      <div v-if="selectedSkus.length > 0" class="flex flex-wrap gap-2">
+        <span
+          v-for="sku in selectedSkus"
+          :key="sku"
+          class="inline-flex items-center gap-1 bg-indigo-100 text-indigo-800 text-xs font-medium px-2.5 py-1 rounded-full"
+        >
+          {{ skuToDesc[sku] || sku }}
+          <button
+            @click="removeProductoFilter(sku)"
+            class="ml-1 text-indigo-600 hover:text-indigo-900 font-bold"
+            title="Quitar"
+          >×</button>
+        </span>
+      </div>
     </div>
 
     <div>
