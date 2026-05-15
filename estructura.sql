@@ -1,5 +1,8 @@
 --- INFORME DE ESTRUCTURA DE BASE DE DATOS ---
---- Actualizado: 2026-04-30 ---
+--- Actualizado: 2026-05-15 ---
+--- 2026-05-15: actualizar_stock y actualizar_stock_con_unidades ahora consumen
+---             lotes FIFO en salidas (DELETE del lote cuando queda vacío) para
+---             mantener stock_lotes sincronizado con stock.cantidad.
 
 --- TABLAS ---
 
@@ -81,10 +84,37 @@ CREATE OR REPLACE FUNCTION public.actualizar_stock(sku_producto text, cantidad_c
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
+DECLARE
+  pallets_a_consumir INTEGER;
+  lote RECORD;
 BEGIN
   UPDATE stock
   SET cantidad = cantidad + cantidad_cambio
   WHERE producto_sku = sku_producto;
+
+  -- En salidas (cantidad_cambio < 0), consumir lotes FIFO para mantener
+  -- sincronizada la suma de stock_lotes.pallets con stock.cantidad.
+  IF cantidad_cambio < 0 THEN
+    pallets_a_consumir := ABS(cantidad_cambio);
+    FOR lote IN
+      SELECT id, pallets, unidades_por_pallet
+      FROM stock_lotes
+      WHERE producto_sku = sku_producto AND pallets > 0
+      ORDER BY fecha_entrada ASC
+    LOOP
+      IF pallets_a_consumir <= 0 THEN EXIT; END IF;
+      IF lote.pallets <= pallets_a_consumir THEN
+        DELETE FROM stock_lotes WHERE id = lote.id;
+        pallets_a_consumir := pallets_a_consumir - lote.pallets;
+      ELSE
+        UPDATE stock_lotes
+        SET pallets = pallets - pallets_a_consumir,
+            unidades_totales = (pallets - pallets_a_consumir) * lote.unidades_por_pallet
+        WHERE id = lote.id;
+        pallets_a_consumir := 0;
+      END IF;
+    END LOOP;
+  END IF;
 END;
 $function$
 
@@ -134,7 +164,7 @@ BEGIN
     LOOP
       IF pallets_a_consumir <= 0 THEN EXIT; END IF;
       IF lote.pallets <= pallets_a_consumir THEN
-        UPDATE stock_lotes SET pallets = 0, unidades_totales = 0 WHERE id = lote.id;
+        DELETE FROM stock_lotes WHERE id = lote.id;
         pallets_a_consumir := pallets_a_consumir - lote.pallets;
       ELSE
         UPDATE stock_lotes
