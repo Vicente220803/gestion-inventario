@@ -274,24 +274,32 @@ function generatePDF() {
     item.tiene_discrepancias ? 'INCOMPLETO' : ''
   ]);
 
+  // Ajustar el tamaño de fuente para que la tabla + observaciones quepan en una sola página
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const startY = 50;
+  const bloqueObservaciones = 45; // espacio reservado para el título + cuadro
+  const altoDisponible = pageHeight - startY - bloqueObservaciones;
+  const filas = tableData.length + 1; // + cabecera
+  const cellPadding = 1;
+  // alto de fila ≈ fontSize(pt)*0.3528(mm/pt)*1.15 + 2*padding
+  let fontSize = 8;
+  const altoFila = (fs) => fs * 0.3528 * 1.15 + 2 * cellPadding;
+  if (filas * altoFila(fontSize) > altoDisponible) {
+    fontSize = (altoDisponible / filas - 2 * cellPadding) / (0.3528 * 1.15);
+    fontSize = Math.max(4, Math.min(8, fontSize));
+  }
+
   autoTable(doc, {
     head: [['Nº Mat.', 'SKU', 'Descripción', 'Tipo Pallet', 'Stock', 'Unidades', 'Precio Unit.', 'Total (€)', 'Stock Real', 'Verif.', 'Obs.']],
     body: tableData,
-    startY: 50,
-    styles: { fontSize: 8 },
+    startY,
+    styles: { fontSize, cellPadding },
     headStyles: { fillColor: [41, 128, 185] },
     alternateRowStyles: { fillColor: [245, 245, 245] }
   });
 
-  // Agregar campo de observaciones
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const bloqueObservaciones = 45; // espacio que ocupa el título + cuadro
-  let yPos = doc.lastAutoTable.finalY + 10;
-  // Si no cabe el bloque completo en la página actual, pasar a una nueva
-  if (yPos + bloqueObservaciones > pageHeight) {
-    doc.addPage();
-    yPos = 20;
-  }
+  // Agregar campo de observaciones (justo debajo de la tabla, en la misma página)
+  const yPos = doc.lastAutoTable.finalY + 10;
   const title = 'Observaciones/Incidencias:';
   doc.setFontSize(12);
   const titleWidth = doc.getTextWidth(title);
