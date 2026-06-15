@@ -284,7 +284,14 @@ function generatePDF() {
   });
 
   // Agregar campo de observaciones
-  const yPos = doc.lastAutoTable.finalY + 10;
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const bloqueObservaciones = 45; // espacio que ocupa el título + cuadro
+  let yPos = doc.lastAutoTable.finalY + 10;
+  // Si no cabe el bloque completo en la página actual, pasar a una nueva
+  if (yPos + bloqueObservaciones > pageHeight) {
+    doc.addPage();
+    yPos = 20;
+  }
   const title = 'Observaciones/Incidencias:';
   doc.setFontSize(12);
   const titleWidth = doc.getTextWidth(title);
