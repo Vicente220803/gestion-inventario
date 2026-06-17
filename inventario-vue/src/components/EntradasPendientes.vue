@@ -10,6 +10,7 @@ const { showSuccess, showInfo, showError } = useToasts();
 const entradas = ref([]);
 const cargando = ref(true);
 const entradaSeleccionada = ref(null);
+const isProcessing = ref(false);
 
 // --- NOTIFICACIONES DE ENTRADA ---
 const CLIENTES_CON_NOTIFICACION = ['ITC', 'Faerch'];
@@ -143,6 +144,8 @@ const agregarItem = () => {
 
 const handleAccept = async () => {
   if (!entradaSeleccionada.value) return;
+  if (isProcessing.value) return; // Evitar doble registro por doble clic
+  isProcessing.value = true;
   const entrada = entradaSeleccionada.value;
 
   try {
@@ -323,6 +326,8 @@ const handleAccept = async () => {
   } catch (error) {
     console.error('Error al aceptar:', error);
     alert('Error al aceptar la entrada: ' + error.message);
+  } finally {
+    isProcessing.value = false;
   }
 };
 
@@ -520,8 +525,8 @@ onUnmounted(() => {
           <button @click="cerrarModal" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50 font-medium">
             Cancelar
           </button>
-          <button @click="handleAccept" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold shadow">
-            Confirmar e Ingresar
+          <button @click="handleAccept" :disabled="isProcessing" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold shadow disabled:opacity-50 disabled:cursor-not-allowed">
+            {{ isProcessing ? 'Procesando...' : 'Confirmar e Ingresar' }}
           </button>
         </div>
       </div>
