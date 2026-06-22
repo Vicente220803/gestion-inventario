@@ -228,7 +228,8 @@ const handleAccept = async () => {
           desc: nombreReal,
           sku: datosReal.sku,
           cantidad: Number(item.cantidad),
-          unidades_por_pallet: unidades_por_pallet_estandar
+          unidades_por_pallet: unidades_por_pallet_estandar,
+          unidades_estandar: unidades_por_pallet_estandar
         });
         totalPallets = Number(item.cantidad);
       } else {
@@ -240,7 +241,8 @@ const handleAccept = async () => {
             desc: nombreReal,
             sku: datosReal.sku,
             cantidad: pallets_completos,
-            unidades_por_pallet: unidades_por_pallet_estandar
+            unidades_por_pallet: unidades_por_pallet_estandar,
+            unidades_estandar: unidades_por_pallet_estandar
           });
         }
 
@@ -250,7 +252,8 @@ const handleAccept = async () => {
             desc: nombreReal,
             sku: datosReal.sku,
             cantidad: Number(item.pallets_incompletos),
-            unidades_por_pallet: Number(item.unidades_incompleto)
+            unidades_por_pallet: Number(item.unidades_incompleto),
+            unidades_estandar: unidades_por_pallet_estandar
           });
         }
 
