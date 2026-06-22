@@ -9,7 +9,7 @@ import ImageModal from '../components/ImageModal.vue';
 import ConfirmWithCalendarModal from '../components/ConfirmWithCalendarModal.vue';
 
 // --- 2. INICIALIZACIÓN DE COMPOSABLES ---
-const { productsWithSku, materialStock, addMovement, obtenerLotesProducto, consumirLoteEspecifico } = useInventory();
+const { productsWithSku, materialStock, addMovement, obtenerLotesProducto } = useInventory();
 const { showSuccess, showError, showInfo } = useToasts();
 // Ya no usamos el 'useConfirm' simple para esta acción.
 
@@ -254,14 +254,13 @@ async function handleUsarPalletIncompleto() {
   const data = palletIncompletoData.value;
   isPalletIncompletoModalVisible.value = false;
 
-  // Consumir TODOS los pallets del lote incompleto (o los que el usuario pidió, lo que sea menor)
+  // Pallets incompletos que se despacharán (los del lote o los pedidos, lo que sea menor)
   const palletsAConsumir = Math.min(data.loteIncompleto.pallets, data.cantidadSolicitada);
 
   try {
-    await consumirLoteEspecifico(data.loteIncompleto.id, palletsAConsumir);
-
-    // No llamamos a actualizar_stock aquí: procesarPedido → addMovement lo hará
-    // por el total de item.cantidad, que no modificamos.
+    // No consumimos el lote aquí: addMovement (Salida) ya descuenta la cantidad
+    // total del pedido vía actualizar_stock, que consume lotes FIFO. Hacerlo
+    // también aquí descontaba los pallets dos veces y descuadraba stock_lotes.
 
     palletIncompletosUsados.value.push(data.desc);
 
