@@ -268,7 +268,10 @@ async function calculateAndExport() {
   const COSTE_ALMACENAJE_DIARIO_UNITARIO = 0.20;
 
   // IMPORTANTE: Ordenar por fechaEntrega (fecha real del movimiento) en lugar de created_at
-  const allMovementsSorted = [...movements.value].sort((a, b) => new Date(a.fechaEntrega) - new Date(b.fechaEntrega));
+  const allMovementsSorted = [...movements.value].sort((a, b) => {
+    const diff = new Date(a.fechaEntrega) - new Date(b.fechaEntrega);
+    return diff !== 0 ? diff : new Date(a.created_at) - new Date(b.created_at);
+  });
 
   // Inicializar con el stock actual REAL de hoy
   const runningStockState = {};
@@ -280,29 +283,21 @@ async function calculateAndExport() {
   dayBeforeStartDate.setDate(dayBeforeStartDate.getDate() - 1);
   dayBeforeStartDate.setHours(23, 59, 59, 999);
 
-  // Filtrar movimientos ANTES del periodo (por fechaEntrega, no created_at)
-  const movementsBeforeReport = allMovementsSorted.filter(m => new Date(m.fechaEntrega) <= dayBeforeStartDate);
-
-  // Calcular stock inicial del periodo: stock actual - movimientos futuros + movimientos pasados
-  movementsBeforeReport.forEach(mov => {
-    (mov.items || []).forEach(item => {
-      runningStockState[item.sku] = runningStockState[item.sku] || 0;
-      // No hacemos nada aquí, el stock ya está correcto desde materialStock
-      // Solo necesitamos procesar los movimientos dentro del rango
-    });
-  });
-
-  // Ahora hay que "retroceder" el stock actual para obtener el stock inicial del periodo
-  // Restamos las entradas y sumamos las salidas que ocurren DESPUÉS del día anterior al inicio
+  // Retroceder el stock actual hasta el inicio del periodo: deshacer en orden
+  // cronológico INVERSO todos los movimientos desde el inicio hasta hoy.
   const movementsAfterDayBefore = allMovementsSorted.filter(m => new Date(m.fechaEntrega) > dayBeforeStartDate);
 
-  movementsAfterDayBefore.forEach(mov => {
+  [...movementsAfterDayBefore].reverse().forEach(mov => {
     (mov.items || []).forEach(item => {
       runningStockState[item.sku] = runningStockState[item.sku] || 0;
       if (mov.tipo === 'Entrada') {
-        runningStockState[item.sku] -= Number(item.cantidad || 0); // Restar entradas futuras
+        runningStockState[item.sku] -= Number(item.cantidad || 0); // deshacer entrada
       } else if (mov.tipo === 'Salida') {
-        runningStockState[item.sku] += Number(item.cantidad || 0); // Sumar salidas futuras
+        runningStockState[item.sku] += Number(item.cantidad || 0); // deshacer salida
+      } else if (['Ajuste', 'Recuento Manual'].includes(mov.tipo) && item.cantidad_anterior != null) {
+        // Deshacer un ajuste de cantidad: volver al valor previo.
+        // Los ajustes de "unidades" no cambian el nº de pallets → se ignoran.
+        runningStockState[item.sku] = Number(item.cantidad_anterior);
       }
     });
   });
