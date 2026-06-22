@@ -159,6 +159,19 @@ const handleAccept = async () => {
           alert(`Por favor selecciona el material manualmente para "${item.descripcion_pdf}".`);
           return;
         }
+        // Validar los datos de pallets incompletos
+        if (!item.todos_completos) {
+          const incompletos = Number(item.pallets_incompletos);
+          const unidades = Number(item.unidades_incompleto);
+          if (incompletos <= 0 || incompletos > Number(item.cantidad)) {
+            alert(`En "${item.descripcion_pdf}", los pallets incompletos deben estar entre 1 y ${item.cantidad}.`);
+            return;
+          }
+          if (unidades <= 0) {
+            alert(`En "${item.descripcion_pdf}", indica cuántas unidades tienen los pallets incompletos.`);
+            return;
+          }
+        }
         itemsValidos.push(item);
       }
     }
