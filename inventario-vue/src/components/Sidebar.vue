@@ -19,7 +19,7 @@
 </template>
 
 <script setup>
-import { HomeIcon, CubeIcon, ClockIcon, CogIcon, PlusIcon } from '@heroicons/vue/24/outline';
+import { HomeIcon, CubeIcon, ClockIcon, CogIcon, PlusIcon, BeakerIcon } from '@heroicons/vue/24/outline';
 import { computed } from 'vue';
 // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
 // Importamos 'profile' directamente desde nuestro estado global 'authState'.
@@ -34,6 +34,7 @@ const allNavigation = [
   { name: 'Entradas', path: '/incomings', icon: PlusIcon, roles: ['admin'] }, // <-- Mejora: Añadimos roles aquí
   { name: 'Nuevo Pedido', path: '/new-order', icon: PlusIcon, roles: ['admin', 'operario'] },
   { name: 'Materiales', path: '/settings', icon: CogIcon, roles: ['admin'] },
+  { name: 'Prueba', path: '/prueba', icon: BeakerIcon, roles: ['admin'] },
 ];
 
 const navigation = computed(() => {

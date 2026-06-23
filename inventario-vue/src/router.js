@@ -35,7 +35,8 @@ const routes = [
       { path: 'historial', name: 'Historial', component: () => import('./views/HistoryView.vue'), meta: { allowedRoles: ['admin', 'operario'] } },
       { path: 'incomings', name: 'Incomings', component: () => import('./views/IncomingsView.vue'), meta: { allowedRoles: ['admin'] } },
       { path: 'settings', name: 'Settings', component: () => import('./views/SettingsView.vue'), meta: { allowedRoles: ['admin'] } },
-      { path: 'new-order', name: 'NewOrder', component: () => import('./views/NewOrderView.vue'), meta: { allowedRoles: ['admin', 'operario'] } }
+      { path: 'new-order', name: 'NewOrder', component: () => import('./views/NewOrderView.vue'), meta: { allowedRoles: ['admin', 'operario'] } },
+      { path: 'prueba', name: 'Prueba', component: () => import('./views/PruebaView.vue'), meta: { allowedRoles: ['admin'] } }
     ]
   }
 ];
