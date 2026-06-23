@@ -310,8 +310,8 @@ const handleAccept = async () => {
 
     showSuccess(`Entrada procesada correctamente.`);
 
-    // Enviar notificación por correo si el cliente lo requiere
-    if (requiereNotificacion.value) {
+    // Enviar notificación por correo si el cliente lo requiere o si se ha indicado un número de pedido
+    if (requiereNotificacion.value || numeroPedido.value) {
       const fileUrl = entrada.file_url || '';
       const fileIdMatch = fileUrl.match(/\/d\/(.+?)(\/|$)/);
       const fileId = fileIdMatch ? fileIdMatch[1] : null;
@@ -525,8 +525,8 @@ onUnmounted(() => {
         </div>
 
         <!-- Campo número de pedido: solo para clientes con notificación -->
-        <div v-if="requiereNotificacion" class="mb-4 bg-yellow-50 border border-yellow-200 rounded p-3">
-          <p class="text-xs font-bold text-yellow-700 uppercase mb-2">✉️ Se enviará notificación de entrada</p>
+        <div class="mb-4 bg-yellow-50 border border-yellow-200 rounded p-3">
+          <p v-if="requiereNotificacion || numeroPedido" class="text-xs font-bold text-yellow-700 uppercase mb-2">✉️ Se enviará notificación de entrada</p>
           <label class="text-sm font-semibold text-gray-700">Número de pedido (opcional)</label>
           <input
             v-model="numeroPedido"
@@ -534,7 +534,8 @@ onUnmounted(() => {
             placeholder="Ej: 4100274556"
             class="mt-1 w-full p-2 text-sm border rounded focus:ring-2 focus:ring-yellow-400 outline-none"
           />
-          <p class="text-xs text-gray-500 mt-1">Resumen a enviar: {{ itemsParaProcesar.filter(i => Number(i.cantidad) > 0).map(i => `${i.descripcion_pdf} → ${i.cantidad} palés`).join(' | ') }}</p>
+          <p class="text-xs text-gray-500 mt-1">Rellena este campo para enviar la notificación de entrada por correo.</p>
+          <p v-if="requiereNotificacion || numeroPedido" class="text-xs text-gray-500 mt-1">Resumen a enviar: {{ itemsParaProcesar.filter(i => Number(i.cantidad) > 0).map(i => `${i.descripcion_pdf} → ${i.cantidad} palés`).join(' | ') }}</p>
         </div>
 
         <div class="flex justify-end gap-3 pt-4 border-t">
