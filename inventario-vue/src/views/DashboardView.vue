@@ -411,7 +411,7 @@ const ultimosMovimientos = computed(() =>
               <td class="py-2 px-2 text-right font-semibold" :class="p.margen <= colchon ? 'text-brand-600' : (p.margen <= colchon + 3 ? 'text-amber-600' : 'text-gray-600 dark:text-gray-300')">
                 {{ p.margen <= 0 ? 'tarde' : fmt(Math.floor(p.margen)) + ' días' }}
               </td>
-              <td class="py-2 px-2 text-right font-bold" :class="p.sugerencia > 0 ? 'text-brand-700 dark:text-brand-200' : 'text-gray-400'">
+              <td class="py-2 px-2 text-right font-bold" :class="(p.sugerencia > 0 && (p.margen <= colchon || p.coberturaDias < diasObjetivo)) ? 'text-brand-700 dark:text-brand-200' : 'text-gray-400'">
                 {{ p.sugerencia > 0 ? fmt(p.sugerencia) + ' pallets' : '—' }}
               </td>
               <td class="py-2 pl-2 text-center">
