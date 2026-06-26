@@ -6,7 +6,7 @@ import {
   ArrowUpTrayIcon, ArrowDownTrayIcon, ClockIcon, ArrowTrendingUpIcon
 } from '@heroicons/vue/24/outline';
 
-const { materialStock, productsWithSku, stockConUnidades, movements, updateLeadTime, updateDiasObjetivo } = useInventory();
+const { materialStock, productsWithSku, stockConUnidades, movements, updateLeadTime, updateDiasObjetivo, updateEntregasMes } = useInventory();
 
 const UMBRAL_STOCK_BAJO = 5; // pallets
 
@@ -35,7 +35,7 @@ const prevDesde = computed(() => sumarDias(prevHasta.value, -(diasRango.value - 
 const infoPorSku = computed(() => {
   const map = {};
   for (const [desc, datos] of Object.entries(productsWithSku.value || {})) {
-    map[datos.sku] = { desc, precio: datos.precio_unitario || 0, leadTime: datos.lead_time ?? 7, objetivo: datos.dias_objetivo ?? 30, img: datos.url_imagen || null };
+    map[datos.sku] = { desc, precio: datos.precio_unitario || 0, leadTime: datos.lead_time ?? 7, objetivo: datos.dias_objetivo ?? 30, entregas: datos.entregas_mes ?? 1, img: datos.url_imagen || null };
   }
   return map;
 });
@@ -158,6 +158,18 @@ function setObj(sku, val) {
   updateDiasObjetivo(sku, v); // persiste en el producto
 }
 
+// Nº de entregas/mes POR PRODUCTO (guardado). 1 = entrega única.
+const entregasEdit = ref({}); // sku -> valor en edición
+function getEntregas(sku) {
+  if (entregasEdit.value[sku] !== undefined) return entregasEdit.value[sku];
+  return infoPorSku.value[sku]?.entregas ?? 1;
+}
+function setEntregas(sku, val) {
+  const v = Math.max(1, Math.round(Number(val) || 1));
+  entregasEdit.value = { ...entregasEdit.value, [sku]: v };
+  updateEntregasMes(sku, v); // persiste en el producto
+}
+
 // Pallets que SALEN de cada producto en el rango (consumo)
 const consumoPorSku = computed(() => {
   const acc = {};
@@ -180,10 +192,13 @@ const previsionCompra = computed(() => {
     const coberturaDias = consumoDiario > 0 ? stock / consumoDiario : Infinity;
     const lead = getLead(sku);   // lead time propio del producto
     const obj = getObj(sku);     // stock objetivo propio del producto
+    const entregas = getEntregas(sku); // nº de entregas/mes
     // Margen real para pedir = días que te quedan menos lo que tarda en llegar
     const margen = coberturaDias - lead;
     // La compra cubre el transporte + el objetivo + el colchón de seguridad
     const sugerencia = Math.max(0, Math.ceil(consumoDiario * (lead + obj + colchon.value) - stock));
+    // Reparto en entregas (si el pedido es mensual repartido)
+    const porEntrega = entregas > 1 && sugerencia > 0 ? Math.ceil(sugerencia / entregas) : null;
     filas.push({
       sku,
       desc: infoPorSku.value[sku]?.desc || sku,
@@ -193,8 +208,10 @@ const previsionCompra = computed(() => {
       coberturaDias,
       lead,
       obj,
+      entregas,
       margen,
       sugerencia,
+      porEntrega,
     });
   }
   return filas.sort((a, b) => a.coberturaDias - b.coberturaDias);
@@ -373,9 +390,9 @@ const ultimosMovimientos = computed(() =>
         </label>
       </div>
       <p class="text-xs text-gray-400 mb-4">
-        Estimación según el consumo (salidas) del rango. El <strong>lead time</strong> (días que tarda en llegar) y el
-        <strong>objetivo</strong> (días de stock que quieres tener) son editables en cada fila y se guardan en el producto.
-        El <strong>colchón</strong> es un margen de seguridad común para imprevistos.
+        Estimación según el consumo (salidas) del rango. El <strong>lead time</strong> (días que tarda en llegar), el
+        <strong>objetivo</strong> (días de stock deseado) y las <strong>entregas/mes</strong> son editables por fila y se guardan
+        en el producto. Si las entregas son &gt; 1, la sugerencia muestra el reparto. El <strong>colchón</strong> es un margen común.
       </p>
       <div v-if="previsionCompra.length === 0" class="text-sm text-gray-400 py-4 text-center">
         No hay salidas en el rango para estimar la compra.
@@ -390,6 +407,7 @@ const ultimosMovimientos = computed(() =>
               <th class="py-2 px-2 text-right">Cobertura</th>
               <th class="py-2 px-2 text-center">Lead time</th>
               <th class="py-2 px-2 text-center">Objetivo</th>
+              <th class="py-2 px-2 text-center">Entregas</th>
               <th class="py-2 px-2 text-right">Margen p/ pedir</th>
               <th class="py-2 px-2 text-right">Sugerencia</th>
               <th class="py-2 pl-2 text-center">Estado</th>
@@ -423,11 +441,23 @@ const ultimosMovimientos = computed(() =>
                   class="w-14 p-1 border rounded text-center text-sm dark:bg-gray-700 dark:border-gray-600"
                 />
               </td>
+              <td class="py-2 px-2 text-center">
+                <input
+                  type="number" min="1" :value="p.entregas"
+                  @change="setEntregas(p.sku, $event.target.value)"
+                  class="w-14 p-1 border rounded text-center text-sm dark:bg-gray-700 dark:border-gray-600"
+                />
+              </td>
               <td class="py-2 px-2 text-right font-semibold" :class="p.margen <= colchon ? 'text-brand-600' : (p.margen <= colchon + 3 ? 'text-amber-600' : 'text-gray-600 dark:text-gray-300')">
                 {{ p.margen <= 0 ? 'tarde' : fmt(Math.floor(p.margen)) + ' días' }}
               </td>
-              <td class="py-2 px-2 text-right font-bold" :class="(p.sugerencia > 0 && (p.margen <= colchon || p.coberturaDias < p.obj)) ? 'text-brand-700 dark:text-brand-200' : 'text-gray-400'">
-                {{ p.sugerencia > 0 ? fmt(p.sugerencia) + ' pallets' : '—' }}
+              <td class="py-2 px-2 text-right">
+                <span class="font-bold" :class="(p.sugerencia > 0 && (p.margen <= colchon || p.coberturaDias < p.obj)) ? 'text-brand-700 dark:text-brand-200' : 'text-gray-400'">
+                  {{ p.sugerencia > 0 ? fmt(p.sugerencia) + ' pallets' : '—' }}
+                </span>
+                <span v-if="p.porEntrega" class="block text-xs text-gray-400">
+                  {{ p.entregas }} entregas de {{ fmt(p.porEntrega) }}
+                </span>
               </td>
               <td class="py-2 pl-2 text-center">
                 <span v-if="p.margen <= colchon" class="text-xs font-bold px-2 py-0.5 rounded bg-brand-600 text-white">Pedir YA</span>
