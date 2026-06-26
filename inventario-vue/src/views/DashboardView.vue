@@ -133,6 +133,7 @@ const maxEntradas = computed(() => Math.max(1, ...topEntradas.value.map(r => r.p
 
 // --- Previsión de compra ---
 const diasObjetivo = ref(30); // para cuántos días quiero tener stock cubierto
+const leadTime = ref(7);      // días que tarda el pedido en llegar (proveedor)
 
 // Pallets que SALEN de cada producto en el rango (consumo)
 const consumoPorSku = computed(() => {
@@ -154,12 +155,16 @@ const previsionCompra = computed(() => {
     const consumoDiario = consumo / diasRango.value;
     const stock = Number(materialStock.value?.[sku] || 0);
     const coberturaDias = consumoDiario > 0 ? stock / consumoDiario : Infinity;
-    const sugerencia = Math.max(0, Math.ceil(consumoDiario * diasObjetivo.value - stock));
+    // Margen real para pedir = días que te quedan menos lo que tarda en llegar
+    const margen = coberturaDias - leadTime.value;
+    // La compra cubre el objetivo + lo que gastas mientras el pedido viaja
+    const sugerencia = Math.max(0, Math.ceil(consumoDiario * (leadTime.value + diasObjetivo.value) - stock));
     filas.push({
       desc: infoPorSku.value[sku]?.desc || sku,
       stock,
       consumoDiario,
       coberturaDias,
+      margen,
       sugerencia,
     });
   }
@@ -332,14 +337,22 @@ const ultimosMovimientos = computed(() =>
         <h2 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
           <ArrowTrendingUpIcon class="w-5 h-5 text-brand-600" /> Previsión de compra
         </h2>
-        <label class="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2">
-          Cubrir
-          <input type="number" v-model.number="diasObjetivo" min="1" class="w-16 p-1 border rounded text-center text-sm dark:bg-gray-700 dark:border-gray-600" />
-          días
-        </label>
+        <div class="flex items-center gap-4">
+          <label class="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2">
+            Lead time
+            <input type="number" v-model.number="leadTime" min="0" class="w-16 p-1 border rounded text-center text-sm dark:bg-gray-700 dark:border-gray-600" />
+            días
+          </label>
+          <label class="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2">
+            Cubrir
+            <input type="number" v-model.number="diasObjetivo" min="1" class="w-16 p-1 border rounded text-center text-sm dark:bg-gray-700 dark:border-gray-600" />
+            días
+          </label>
+        </div>
       </div>
       <p class="text-xs text-gray-400 mb-4">
-        Estimación según el consumo (salidas) del rango seleccionado. Ordenado por urgencia: arriba lo que antes se agota.
+        Estimación según el consumo (salidas) del rango. <strong>Lead time</strong> = días que tarda el pedido en llegar.
+        El <strong>margen</strong> es lo que te queda para pedir antes de quedarte sin stock; ordenado por urgencia.
       </p>
       <div v-if="previsionCompra.length === 0" class="text-sm text-gray-400 py-4 text-center">
         No hay salidas en el rango para estimar la compra.
@@ -352,6 +365,7 @@ const ultimosMovimientos = computed(() =>
               <th class="py-2 px-2 text-right">Stock</th>
               <th class="py-2 px-2 text-right">Consumo/día</th>
               <th class="py-2 px-2 text-right">Cobertura</th>
+              <th class="py-2 px-2 text-right">Margen p/ pedir</th>
               <th class="py-2 px-2 text-right">Sugerencia</th>
               <th class="py-2 pl-2 text-center">Estado</th>
             </tr>
@@ -361,14 +375,18 @@ const ultimosMovimientos = computed(() =>
               <td class="py-2 pr-2 text-gray-700 dark:text-gray-200">{{ p.desc }}</td>
               <td class="py-2 px-2 text-right">{{ fmt(p.stock) }}</td>
               <td class="py-2 px-2 text-right">{{ fmt1(p.consumoDiario) }}</td>
-              <td class="py-2 px-2 text-right" :class="p.coberturaDias < diasObjetivo ? 'text-brand-600 font-semibold' : 'text-gray-600 dark:text-gray-300'">
+              <td class="py-2 px-2 text-right text-gray-600 dark:text-gray-300">
                 {{ fmt(Math.floor(p.coberturaDias)) }} días
+              </td>
+              <td class="py-2 px-2 text-right font-semibold" :class="p.margen <= 0 ? 'text-brand-600' : (p.margen <= 3 ? 'text-amber-600' : 'text-gray-600 dark:text-gray-300')">
+                {{ p.margen <= 0 ? 'tarde' : fmt(Math.floor(p.margen)) + ' días' }}
               </td>
               <td class="py-2 px-2 text-right font-bold" :class="p.sugerencia > 0 ? 'text-brand-700 dark:text-brand-200' : 'text-gray-400'">
                 {{ p.sugerencia > 0 ? fmt(p.sugerencia) + ' pallets' : '—' }}
               </td>
               <td class="py-2 pl-2 text-center">
-                <span v-if="p.coberturaDias < diasObjetivo" class="text-xs font-bold px-2 py-0.5 rounded bg-brand-100 text-brand-700">Pedir</span>
+                <span v-if="p.margen <= 0" class="text-xs font-bold px-2 py-0.5 rounded bg-brand-600 text-white">Pedir YA</span>
+                <span v-else-if="p.coberturaDias < diasObjetivo" class="text-xs font-bold px-2 py-0.5 rounded bg-brand-100 text-brand-700">Pedir</span>
                 <span v-else class="text-xs font-bold px-2 py-0.5 rounded bg-brandgreen-100 text-brandgreen-700">OK</span>
               </td>
             </tr>
