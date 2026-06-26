@@ -26,6 +26,7 @@ Schema: public | Tabla: productos  (RLS: on)
   - aliases (text[]) [default '{}']
   - tipo_pallet (text)
   - lead_time (integer) [default 7]  -- dias que tarda el pedido del proveedor en llegar
+  - dias_objetivo (integer) [default 30]  -- dias de stock objetivo (cobertura deseada)
 
 Schema: public | Tabla: stock  (RLS: on)
   - producto_sku (text) NOT NULL  [PK, FK -> productos.sku]

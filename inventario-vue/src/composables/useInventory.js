@@ -21,7 +21,7 @@ export function useInventory() {
     isLoading.value = true;
     try {
       const [productsRes, stockRes, stockUnidadesRes, movementsRes, pendingRes] = await Promise.all([
-        supabase.from('productos').select('sku, descripcion, url_imagen, unidades_por_pallet, precio_unitario, numero_material, tipo_pallet, lead_time'),
+        supabase.from('productos').select('sku, descripcion, url_imagen, unidades_por_pallet, precio_unitario, numero_material, tipo_pallet, lead_time, dias_objetivo'),
         supabase.from('stock').select('*'),
         supabase.from('stock_con_unidades').select('*'),
         supabase.from('MOVIMIENTOS').select('*').order('created_at', { ascending: false }),
@@ -45,7 +45,8 @@ export function useInventory() {
           precio_unitario: p.precio_unitario || 0,
           numero_material: p.numero_material || '',
           tipo_pallet: p.tipo_pallet || '',
-          lead_time: p.lead_time ?? 7
+          lead_time: p.lead_time ?? 7,
+          dias_objetivo: p.dias_objetivo ?? 30
         }];
       }));
 
@@ -456,6 +457,27 @@ export function useInventory() {
     }
   }
 
+  async function updateDiasObjetivo(sku, dias) {
+    const valor = Math.max(1, Math.round(Number(dias) || 1));
+    try {
+      const { error } = await supabase
+        .from('productos')
+        .update({ dias_objetivo: valor })
+        .eq('sku', sku);
+      if (error) throw error;
+
+      for (const desc of Object.keys(_productsWithSku.value)) {
+        if (_productsWithSku.value[desc].sku === sku) {
+          _productsWithSku.value[desc] = { ..._productsWithSku.value[desc], dias_objetivo: valor };
+          break;
+        }
+      }
+    } catch (error) {
+      showError('No se pudo guardar el stock objetivo.');
+      console.error('Error en updateDiasObjetivo:', error);
+    }
+  }
+
   async function updateUnidadesPorPallet(sku, newUnidades) {
     try {
       // Actualizar en tabla productos
@@ -640,6 +662,7 @@ export function useInventory() {
     deleteMovement,
     updateUnidadesPorPallet,
     updateLeadTime,
+    updateDiasObjetivo,
     ajustarUnidadesReales,
     obtenerLotesProducto,
     consumirLoteEspecifico,
