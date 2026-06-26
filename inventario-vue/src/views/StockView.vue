@@ -251,11 +251,29 @@ function generatePDF() {
   const doc = new jsPDF('l');
   const valorTotalInventario = allItems.value.reduce((sum, item) => sum + (item.valor_total || 0), 0);
 
-  doc.setFontSize(18);
-  doc.text('Inventario de Stock', 20, 20);
-  doc.setFontSize(12);
-  doc.text(`Fecha y hora de generación: ${new Date().toLocaleString('es-ES')}`, 20, 30);
-  doc.text(`Total Pallets Disponibles: ${totalPallets.value}  |  Valor Total Inventario: ${valorTotalInventario.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`, 20, 40);
+  // Membrete corporativo Surexport Levante (colores del logo: rojo + gris + verde)
+  doc.setFont(undefined, 'bold');
+  doc.setFontSize(24);
+  doc.setTextColor(184, 20, 21); // rojo "sur"
+  doc.text('sur', 20, 20);
+  const wSur = doc.getTextWidth('sur');
+  doc.setTextColor(127, 127, 127); // gris "export"
+  doc.text('export', 20 + wSur, 20);
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(127, 127, 127);
+  doc.text('L E V A N T E', 21, 25);
+
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(13);
+  doc.text('Inventario de Stock', 20, 33);
+  doc.setFontSize(10);
+  doc.text(`Fecha y hora de generación: ${new Date().toLocaleString('es-ES')}`, 20, 39);
+  doc.text(`Total Pallets Disponibles: ${totalPallets.value}  |  Valor Total Inventario: ${valorTotalInventario.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`, 20, 44);
+  // Línea separadora en verde corporativo
+  doc.setDrawColor(14, 74, 37);
+  doc.setLineWidth(0.8);
+  doc.line(20, 47, 277, 47);
 
   const formatNumber = (num) => Number(num).toLocaleString('es-ES');
   const formatCurrency = (num) => Number(num).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
