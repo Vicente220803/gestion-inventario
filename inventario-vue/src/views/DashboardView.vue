@@ -6,7 +6,7 @@ import {
   ArrowUpTrayIcon, ArrowDownTrayIcon, ClockIcon, ArrowTrendingUpIcon
 } from '@heroicons/vue/24/outline';
 
-const { materialStock, productsWithSku, stockConUnidades, movements } = useInventory();
+const { materialStock, productsWithSku, stockConUnidades, movements, updateLeadTime } = useInventory();
 
 const UMBRAL_STOCK_BAJO = 5; // pallets
 
@@ -35,7 +35,7 @@ const prevDesde = computed(() => sumarDias(prevHasta.value, -(diasRango.value - 
 const infoPorSku = computed(() => {
   const map = {};
   for (const [desc, datos] of Object.entries(productsWithSku.value || {})) {
-    map[datos.sku] = { desc, precio: datos.precio_unitario || 0 };
+    map[datos.sku] = { desc, precio: datos.precio_unitario || 0, leadTime: datos.lead_time ?? 7 };
   }
   return map;
 });
@@ -133,7 +133,18 @@ const maxEntradas = computed(() => Math.max(1, ...topEntradas.value.map(r => r.p
 
 // --- Previsión de compra ---
 const diasObjetivo = ref(30); // para cuántos días quiero tener stock cubierto
-const leadTime = ref(7);      // días que tarda el pedido en llegar (proveedor)
+
+// Lead time POR PRODUCTO (guardado en cada material). Editable en la tabla.
+const leadEdit = ref({}); // sku -> valor en edición
+function getLead(sku) {
+  if (leadEdit.value[sku] !== undefined) return leadEdit.value[sku];
+  return infoPorSku.value[sku]?.leadTime ?? 7;
+}
+function setLead(sku, val) {
+  const v = Math.max(0, Math.round(Number(val) || 0));
+  leadEdit.value = { ...leadEdit.value, [sku]: v };
+  updateLeadTime(sku, v); // persiste en el producto
+}
 
 // Pallets que SALEN de cada producto en el rango (consumo)
 const consumoPorSku = computed(() => {
@@ -155,15 +166,18 @@ const previsionCompra = computed(() => {
     const consumoDiario = consumo / diasRango.value;
     const stock = Number(materialStock.value?.[sku] || 0);
     const coberturaDias = consumoDiario > 0 ? stock / consumoDiario : Infinity;
+    const lead = getLead(sku); // lead time propio del producto
     // Margen real para pedir = días que te quedan menos lo que tarda en llegar
-    const margen = coberturaDias - leadTime.value;
+    const margen = coberturaDias - lead;
     // La compra cubre el objetivo + lo que gastas mientras el pedido viaja
-    const sugerencia = Math.max(0, Math.ceil(consumoDiario * (leadTime.value + diasObjetivo.value) - stock));
+    const sugerencia = Math.max(0, Math.ceil(consumoDiario * (lead + diasObjetivo.value) - stock));
     filas.push({
+      sku,
       desc: infoPorSku.value[sku]?.desc || sku,
       stock,
       consumoDiario,
       coberturaDias,
+      lead,
       margen,
       sugerencia,
     });
@@ -337,22 +351,15 @@ const ultimosMovimientos = computed(() =>
         <h2 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
           <ArrowTrendingUpIcon class="w-5 h-5 text-brand-600" /> Previsión de compra
         </h2>
-        <div class="flex items-center gap-4">
-          <label class="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2">
-            Lead time
-            <input type="number" v-model.number="leadTime" min="0" class="w-16 p-1 border rounded text-center text-sm dark:bg-gray-700 dark:border-gray-600" />
-            días
-          </label>
-          <label class="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2">
-            Cubrir
-            <input type="number" v-model.number="diasObjetivo" min="1" class="w-16 p-1 border rounded text-center text-sm dark:bg-gray-700 dark:border-gray-600" />
-            días
-          </label>
-        </div>
+        <label class="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2">
+          Cubrir
+          <input type="number" v-model.number="diasObjetivo" min="1" class="w-16 p-1 border rounded text-center text-sm dark:bg-gray-700 dark:border-gray-600" />
+          días
+        </label>
       </div>
       <p class="text-xs text-gray-400 mb-4">
-        Estimación según el consumo (salidas) del rango. <strong>Lead time</strong> = días que tarda el pedido en llegar.
-        El <strong>margen</strong> es lo que te queda para pedir antes de quedarte sin stock; ordenado por urgencia.
+        Estimación según el consumo (salidas) del rango. El <strong>lead time</strong> (días que tarda en llegar) es editable
+        en cada fila y se guarda en el producto. El <strong>margen</strong> es lo que te queda para pedir antes de quedarte sin stock.
       </p>
       <div v-if="previsionCompra.length === 0" class="text-sm text-gray-400 py-4 text-center">
         No hay salidas en el rango para estimar la compra.
@@ -365,6 +372,7 @@ const ultimosMovimientos = computed(() =>
               <th class="py-2 px-2 text-right">Stock</th>
               <th class="py-2 px-2 text-right">Consumo/día</th>
               <th class="py-2 px-2 text-right">Cobertura</th>
+              <th class="py-2 px-2 text-center">Lead time</th>
               <th class="py-2 px-2 text-right">Margen p/ pedir</th>
               <th class="py-2 px-2 text-right">Sugerencia</th>
               <th class="py-2 pl-2 text-center">Estado</th>
@@ -377,6 +385,13 @@ const ultimosMovimientos = computed(() =>
               <td class="py-2 px-2 text-right">{{ fmt1(p.consumoDiario) }}</td>
               <td class="py-2 px-2 text-right text-gray-600 dark:text-gray-300">
                 {{ fmt(Math.floor(p.coberturaDias)) }} días
+              </td>
+              <td class="py-2 px-2 text-center">
+                <input
+                  type="number" min="0" :value="p.lead"
+                  @change="setLead(p.sku, $event.target.value)"
+                  class="w-14 p-1 border rounded text-center text-sm dark:bg-gray-700 dark:border-gray-600"
+                />
               </td>
               <td class="py-2 px-2 text-right font-semibold" :class="p.margen <= 0 ? 'text-brand-600' : (p.margen <= 3 ? 'text-amber-600' : 'text-gray-600 dark:text-gray-300')">
                 {{ p.margen <= 0 ? 'tarde' : fmt(Math.floor(p.margen)) + ' días' }}

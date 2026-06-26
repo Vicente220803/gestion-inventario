@@ -21,7 +21,7 @@ export function useInventory() {
     isLoading.value = true;
     try {
       const [productsRes, stockRes, stockUnidadesRes, movementsRes, pendingRes] = await Promise.all([
-        supabase.from('productos').select('sku, descripcion, url_imagen, unidades_por_pallet, precio_unitario, numero_material, tipo_pallet'),
+        supabase.from('productos').select('sku, descripcion, url_imagen, unidades_por_pallet, precio_unitario, numero_material, tipo_pallet, lead_time'),
         supabase.from('stock').select('*'),
         supabase.from('stock_con_unidades').select('*'),
         supabase.from('MOVIMIENTOS').select('*').order('created_at', { ascending: false }),
@@ -44,7 +44,8 @@ export function useInventory() {
           unidades_por_pallet: p.unidades_por_pallet || 1,
           precio_unitario: p.precio_unitario || 0,
           numero_material: p.numero_material || '',
-          tipo_pallet: p.tipo_pallet || ''
+          tipo_pallet: p.tipo_pallet || '',
+          lead_time: p.lead_time ?? 7
         }];
       }));
 
@@ -433,6 +434,28 @@ export function useInventory() {
     }
   }
 
+  async function updateLeadTime(sku, dias) {
+    const valor = Math.max(0, Math.round(Number(dias) || 0));
+    try {
+      const { error } = await supabase
+        .from('productos')
+        .update({ lead_time: valor })
+        .eq('sku', sku);
+      if (error) throw error;
+
+      // Actualizar localmente sin recargar todo el inventario
+      for (const desc of Object.keys(_productsWithSku.value)) {
+        if (_productsWithSku.value[desc].sku === sku) {
+          _productsWithSku.value[desc] = { ..._productsWithSku.value[desc], lead_time: valor };
+          break;
+        }
+      }
+    } catch (error) {
+      showError('No se pudo guardar el plazo de entrega.');
+      console.error('Error en updateLeadTime:', error);
+    }
+  }
+
   async function updateUnidadesPorPallet(sku, newUnidades) {
     try {
       // Actualizar en tabla productos
@@ -616,6 +639,7 @@ export function useInventory() {
     deleteProduct,
     deleteMovement,
     updateUnidadesPorPallet,
+    updateLeadTime,
     ajustarUnidadesReales,
     obtenerLotesProducto,
     consumirLoteEspecifico,
