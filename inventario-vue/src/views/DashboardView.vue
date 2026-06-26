@@ -135,8 +135,10 @@ const maxEntradas = computed(() => Math.max(1, ...topEntradas.value.map(r => r.p
 // Ajustes globales (se guardan en el navegador para no reescribirlos cada vez)
 const colchon = ref(Number(localStorage.getItem('prev_colchon') ?? 5));        // días de seguridad
 const reduccion = ref(Number(localStorage.getItem('prev_reduccion') ?? 0));     // % a reducir la sugerencia (stock que ya hay en fábrica)
+const palletsEntrega = ref(Number(localStorage.getItem('prev_pallets_entrega') ?? 33)); // pallets por camión/entrega
 watch(colchon, v => localStorage.setItem('prev_colchon', v));
 watch(reduccion, v => localStorage.setItem('prev_reduccion', v));
+watch(palletsEntrega, v => localStorage.setItem('prev_pallets_entrega', v));
 
 // Lead time POR PRODUCTO (guardado en cada material). Editable en la tabla.
 const leadEdit = ref({}); // sku -> valor en edición
@@ -203,8 +205,10 @@ const previsionCompra = computed(() => {
     const sugerenciaBase = Math.max(0, Math.ceil(consumoDiario * (lead + obj + colchon.value) - stock));
     // Ajuste global a la baja por el stock que ya tenéis en fábrica
     const sugerencia = Math.max(0, Math.round(sugerenciaBase * (1 - reduccion.value / 100)));
-    // Reparto en entregas (si el pedido es mensual repartido)
-    const porEntrega = entregas > 1 && sugerencia > 0 ? Math.ceil(sugerencia / entregas) : null;
+    // Entregas REALMENTE necesarias = pedido ÷ pallets por camión (máx. las del proveedor)
+    const entregasNecesarias = (entregas > 1 && sugerencia > 0 && palletsEntrega.value > 0)
+      ? Math.min(entregas, Math.max(1, Math.ceil(sugerencia / palletsEntrega.value)))
+      : null;
     filas.push({
       sku,
       desc: infoPorSku.value[sku]?.desc || sku,
@@ -217,7 +221,7 @@ const previsionCompra = computed(() => {
       entregas,
       margen,
       sugerencia,
-      porEntrega,
+      entregasNecesarias,
     });
   }
   return filas.sort((a, b) => a.coberturaDias - b.coberturaDias);
@@ -400,13 +404,18 @@ const ultimosMovimientos = computed(() =>
             <input type="number" v-model.number="reduccion" min="0" max="100" class="w-16 p-1 border rounded text-center text-sm dark:bg-gray-700 dark:border-gray-600" />
             %
           </label>
+          <label class="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2">
+            Pallets/entrega
+            <input type="number" v-model.number="palletsEntrega" min="1" class="w-16 p-1 border rounded text-center text-sm dark:bg-gray-700 dark:border-gray-600" />
+          </label>
         </div>
       </div>
       <p class="text-xs text-gray-400 mb-4">
         Estimación según el consumo (salidas) del rango. El <strong>lead time</strong> (días que tarda en llegar), el
         <strong>objetivo</strong> (días de stock deseado) y las <strong>entregas/mes</strong> son editables por fila y se guardan
-        en el producto. Si las entregas son &gt; 1, la sugerencia muestra el reparto. El <strong>colchón</strong> es un margen común.
-        <strong>Reducir %</strong> baja todas las sugerencias (porque ya tenéis stock en fábrica que la app no ve).
+        en el producto (Entregas = máximo que hace el proveedor). El <strong>colchón</strong> es un margen común.
+        <strong>Reducir %</strong> baja todas las sugerencias (stock que ya tenéis en fábrica). Con los <strong>pallets/entrega</strong>
+        (camión) el programa calcula cuántas entregas necesitas de verdad: <em>"X de N entregas"</em>.
       </p>
       <div v-if="previsionCompra.length === 0" class="text-sm text-gray-400 py-4 text-center">
         No hay salidas en el rango para estimar la compra.
@@ -469,8 +478,8 @@ const ultimosMovimientos = computed(() =>
                 <span class="font-bold" :class="(p.sugerencia > 0 && (p.margen <= colchon || p.coberturaDias < p.obj)) ? 'text-brand-700 dark:text-brand-200' : 'text-gray-400'">
                   {{ p.sugerencia > 0 ? fmt(p.sugerencia) + ' pallets' : '—' }}
                 </span>
-                <span v-if="p.porEntrega" class="block text-xs text-gray-400">
-                  {{ p.entregas }} entregas de {{ fmt(p.porEntrega) }}
+                <span v-if="p.entregasNecesarias" class="block text-xs text-gray-400">
+                  {{ p.entregasNecesarias }} de {{ p.entregas }} entregas
                 </span>
               </td>
               <td class="py-2 pl-2 text-center">
