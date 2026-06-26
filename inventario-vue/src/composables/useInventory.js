@@ -21,7 +21,7 @@ export function useInventory() {
     isLoading.value = true;
     try {
       const [productsRes, stockRes, stockUnidadesRes, movementsRes, pendingRes] = await Promise.all([
-        supabase.from('productos').select('sku, descripcion, url_imagen, unidades_por_pallet, precio_unitario, numero_material, tipo_pallet, lead_time, dias_objetivo, entregas_mes'),
+        supabase.from('productos').select('sku, descripcion, url_imagen, unidades_por_pallet, precio_unitario, numero_material, tipo_pallet, lead_time, dias_objetivo, entregas_mes, pallets_entrega'),
         supabase.from('stock').select('*'),
         supabase.from('stock_con_unidades').select('*'),
         supabase.from('MOVIMIENTOS').select('*').order('created_at', { ascending: false }),
@@ -47,7 +47,8 @@ export function useInventory() {
           tipo_pallet: p.tipo_pallet || '',
           lead_time: p.lead_time ?? 7,
           dias_objetivo: p.dias_objetivo ?? 30,
-          entregas_mes: p.entregas_mes ?? 1
+          entregas_mes: p.entregas_mes ?? 1,
+          pallets_entrega: p.pallets_entrega ?? 33
         }];
       }));
 
@@ -500,6 +501,27 @@ export function useInventory() {
     }
   }
 
+  async function updatePalletsEntrega(sku, pallets) {
+    const valor = Math.max(1, Math.round(Number(pallets) || 1));
+    try {
+      const { error } = await supabase
+        .from('productos')
+        .update({ pallets_entrega: valor })
+        .eq('sku', sku);
+      if (error) throw error;
+
+      for (const desc of Object.keys(_productsWithSku.value)) {
+        if (_productsWithSku.value[desc].sku === sku) {
+          _productsWithSku.value[desc] = { ..._productsWithSku.value[desc], pallets_entrega: valor };
+          break;
+        }
+      }
+    } catch (error) {
+      showError('No se pudo guardar los pallets por entrega.');
+      console.error('Error en updatePalletsEntrega:', error);
+    }
+  }
+
   async function updateUnidadesPorPallet(sku, newUnidades) {
     try {
       // Actualizar en tabla productos
@@ -686,6 +708,7 @@ export function useInventory() {
     updateLeadTime,
     updateDiasObjetivo,
     updateEntregasMes,
+    updatePalletsEntrega,
     ajustarUnidadesReales,
     obtenerLotesProducto,
     consumirLoteEspecifico,

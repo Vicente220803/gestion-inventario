@@ -6,7 +6,7 @@ import {
   ArrowUpTrayIcon, ArrowDownTrayIcon, ClockIcon, ArrowTrendingUpIcon
 } from '@heroicons/vue/24/outline';
 
-const { materialStock, productsWithSku, stockConUnidades, movements, updateLeadTime, updateDiasObjetivo, updateEntregasMes } = useInventory();
+const { materialStock, productsWithSku, stockConUnidades, movements, updateLeadTime, updateDiasObjetivo, updateEntregasMes, updatePalletsEntrega } = useInventory();
 
 const UMBRAL_STOCK_BAJO = 5; // pallets
 
@@ -35,7 +35,7 @@ const prevDesde = computed(() => sumarDias(prevHasta.value, -(diasRango.value - 
 const infoPorSku = computed(() => {
   const map = {};
   for (const [desc, datos] of Object.entries(productsWithSku.value || {})) {
-    map[datos.sku] = { desc, precio: datos.precio_unitario || 0, leadTime: datos.lead_time ?? 7, objetivo: datos.dias_objetivo ?? 30, entregas: datos.entregas_mes ?? 1, img: datos.url_imagen || null };
+    map[datos.sku] = { desc, precio: datos.precio_unitario || 0, leadTime: datos.lead_time ?? 7, objetivo: datos.dias_objetivo ?? 30, entregas: datos.entregas_mes ?? 1, palletsEntrega: datos.pallets_entrega ?? 33, img: datos.url_imagen || null };
   }
   return map;
 });
@@ -135,10 +135,8 @@ const maxEntradas = computed(() => Math.max(1, ...topEntradas.value.map(r => r.p
 // Ajustes globales (se guardan en el navegador para no reescribirlos cada vez)
 const colchon = ref(Number(localStorage.getItem('prev_colchon') ?? 5));        // días de seguridad
 const reduccion = ref(Number(localStorage.getItem('prev_reduccion') ?? 0));     // % a reducir la sugerencia (stock que ya hay en fábrica)
-const palletsEntrega = ref(Number(localStorage.getItem('prev_pallets_entrega') ?? 33)); // pallets por camión/entrega
 watch(colchon, v => localStorage.setItem('prev_colchon', v));
 watch(reduccion, v => localStorage.setItem('prev_reduccion', v));
-watch(palletsEntrega, v => localStorage.setItem('prev_pallets_entrega', v));
 
 // Lead time POR PRODUCTO (guardado en cada material). Editable en la tabla.
 const leadEdit = ref({}); // sku -> valor en edición
@@ -176,6 +174,18 @@ function setEntregas(sku, val) {
   updateEntregasMes(sku, v); // persiste en el producto
 }
 
+// Máx. pallets por entrega (camión) POR PRODUCTO (guardado). Cada proveedor el suyo.
+const palletsEdit = ref({}); // sku -> valor en edición
+function getPallets(sku) {
+  if (palletsEdit.value[sku] !== undefined) return palletsEdit.value[sku];
+  return infoPorSku.value[sku]?.palletsEntrega ?? 33;
+}
+function setPallets(sku, val) {
+  const v = Math.max(1, Math.round(Number(val) || 1));
+  palletsEdit.value = { ...palletsEdit.value, [sku]: v };
+  updatePalletsEntrega(sku, v); // persiste en el producto
+}
+
 // Pallets que SALEN de cada producto en el rango (consumo)
 const consumoPorSku = computed(() => {
   const acc = {};
@@ -198,7 +208,8 @@ const previsionCompra = computed(() => {
     const coberturaDias = consumoDiario > 0 ? stock / consumoDiario : Infinity;
     const lead = getLead(sku);   // lead time propio del producto
     const obj = getObj(sku);     // stock objetivo propio del producto
-    const entregas = getEntregas(sku); // nº de entregas/mes
+    const entregas = getEntregas(sku); // nº de entregas/mes (máx. del proveedor)
+    const ppe = getPallets(sku);       // máx. pallets por entrega del proveedor
     // Margen real para pedir = días que te quedan menos lo que tarda en llegar
     const margen = coberturaDias - lead;
     // La compra cubre el transporte + el objetivo + el colchón de seguridad
@@ -206,8 +217,8 @@ const previsionCompra = computed(() => {
     // Ajuste global a la baja por el stock que ya tenéis en fábrica
     const sugerencia = Math.max(0, Math.round(sugerenciaBase * (1 - reduccion.value / 100)));
     // Entregas REALMENTE necesarias = pedido ÷ pallets por camión (máx. las del proveedor)
-    const entregasNecesarias = (entregas > 1 && sugerencia > 0 && palletsEntrega.value > 0)
-      ? Math.min(entregas, Math.max(1, Math.ceil(sugerencia / palletsEntrega.value)))
+    const entregasNecesarias = (entregas > 1 && sugerencia > 0 && ppe > 0)
+      ? Math.min(entregas, Math.max(1, Math.ceil(sugerencia / ppe)))
       : null;
     filas.push({
       sku,
@@ -219,6 +230,7 @@ const previsionCompra = computed(() => {
       lead,
       obj,
       entregas,
+      ppe,
       margen,
       sugerencia,
       entregasNecesarias,
@@ -404,18 +416,14 @@ const ultimosMovimientos = computed(() =>
             <input type="number" v-model.number="reduccion" min="0" max="100" class="w-16 p-1 border rounded text-center text-sm dark:bg-gray-700 dark:border-gray-600" />
             %
           </label>
-          <label class="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2">
-            Pallets/entrega
-            <input type="number" v-model.number="palletsEntrega" min="1" class="w-16 p-1 border rounded text-center text-sm dark:bg-gray-700 dark:border-gray-600" />
-          </label>
         </div>
       </div>
       <p class="text-xs text-gray-400 mb-4">
         Estimación según el consumo (salidas) del rango. El <strong>lead time</strong> (días que tarda en llegar), el
         <strong>objetivo</strong> (días de stock deseado) y las <strong>entregas/mes</strong> son editables por fila y se guardan
-        en el producto (Entregas = máximo que hace el proveedor). El <strong>colchón</strong> es un margen común.
-        <strong>Reducir %</strong> baja todas las sugerencias (stock que ya tenéis en fábrica). Con los <strong>pallets/entrega</strong>
-        (camión) el programa calcula cuántas entregas necesitas de verdad: <em>"X de N entregas"</em>.
+        en el producto (Entregas = máx. del proveedor; Pallets/entrega = camión de ese proveedor). El <strong>colchón</strong> es un
+        margen común y <strong>Reducir %</strong> baja todas las sugerencias (stock que ya tenéis en fábrica). Con los pallets/entrega
+        el programa calcula las entregas que necesitas de verdad: <em>"X de N entregas"</em>.
       </p>
       <div v-if="previsionCompra.length === 0" class="text-sm text-gray-400 py-4 text-center">
         No hay salidas en el rango para estimar la compra.
@@ -431,6 +439,7 @@ const ultimosMovimientos = computed(() =>
               <th class="py-2 px-2 text-center">Lead time</th>
               <th class="py-2 px-2 text-center">Objetivo</th>
               <th class="py-2 px-2 text-center">Entregas</th>
+              <th class="py-2 px-2 text-center">Pallets/entrega</th>
               <th class="py-2 px-2 text-right">Margen p/ pedir</th>
               <th class="py-2 px-2 text-right">Sugerencia</th>
               <th class="py-2 pl-2 text-center">Estado</th>
@@ -469,6 +478,13 @@ const ultimosMovimientos = computed(() =>
                   type="number" min="1" :value="p.entregas"
                   @change="setEntregas(p.sku, $event.target.value)"
                   class="w-14 p-1 border rounded text-center text-sm dark:bg-gray-700 dark:border-gray-600"
+                />
+              </td>
+              <td class="py-2 px-2 text-center">
+                <input
+                  type="number" min="1" :value="p.ppe"
+                  @change="setPallets(p.sku, $event.target.value)"
+                  class="w-16 p-1 border rounded text-center text-sm dark:bg-gray-700 dark:border-gray-600"
                 />
               </td>
               <td class="py-2 px-2 text-right font-semibold" :class="p.margen <= colchon ? 'text-brand-600' : (p.margen <= colchon + 3 ? 'text-amber-600' : 'text-gray-600 dark:text-gray-300')">

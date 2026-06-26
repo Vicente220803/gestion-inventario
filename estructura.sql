@@ -28,6 +28,7 @@ Schema: public | Tabla: productos  (RLS: on)
   - lead_time (integer) [default 7]  -- dias que tarda el pedido del proveedor en llegar
   - dias_objetivo (integer) [default 30]  -- dias de stock objetivo (cobertura deseada)
   - entregas_mes (integer) [default 1]  -- nº de entregas en que se reparte el pedido mensual
+  - pallets_entrega (integer) [default 33]  -- max pallets por entrega/camion de ese proveedor
 
 Schema: public | Tabla: stock  (RLS: on)
   - producto_sku (text) NOT NULL  [PK, FK -> productos.sku]
