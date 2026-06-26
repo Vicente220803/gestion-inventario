@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useInventory } from '../composables/useInventory';
 import {
   CubeIcon, ArchiveBoxIcon, BanknotesIcon, ExclamationTriangleIcon,
@@ -132,7 +132,11 @@ const maxSalidas = computed(() => Math.max(1, ...topSalidas.value.map(r => r.pal
 const maxEntradas = computed(() => Math.max(1, ...topEntradas.value.map(r => r.pallets)));
 
 // --- Previsión de compra ---
-const colchon = ref(5);       // días extra de seguridad (imprevistos / picos de demanda)
+// Ajustes globales (se guardan en el navegador para no reescribirlos cada vez)
+const colchon = ref(Number(localStorage.getItem('prev_colchon') ?? 5));        // días de seguridad
+const reduccion = ref(Number(localStorage.getItem('prev_reduccion') ?? 0));     // % a reducir la sugerencia (stock que ya hay en fábrica)
+watch(colchon, v => localStorage.setItem('prev_colchon', v));
+watch(reduccion, v => localStorage.setItem('prev_reduccion', v));
 
 // Lead time POR PRODUCTO (guardado en cada material). Editable en la tabla.
 const leadEdit = ref({}); // sku -> valor en edición
@@ -196,7 +200,9 @@ const previsionCompra = computed(() => {
     // Margen real para pedir = días que te quedan menos lo que tarda en llegar
     const margen = coberturaDias - lead;
     // La compra cubre el transporte + el objetivo + el colchón de seguridad
-    const sugerencia = Math.max(0, Math.ceil(consumoDiario * (lead + obj + colchon.value) - stock));
+    const sugerenciaBase = Math.max(0, Math.ceil(consumoDiario * (lead + obj + colchon.value) - stock));
+    // Ajuste global a la baja por el stock que ya tenéis en fábrica
+    const sugerencia = Math.max(0, Math.round(sugerenciaBase * (1 - reduccion.value / 100)));
     // Reparto en entregas (si el pedido es mensual repartido)
     const porEntrega = entregas > 1 && sugerencia > 0 ? Math.ceil(sugerencia / entregas) : null;
     filas.push({
@@ -383,16 +389,24 @@ const ultimosMovimientos = computed(() =>
         <h2 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
           <ArrowTrendingUpIcon class="w-5 h-5 text-brand-600" /> Previsión de compra
         </h2>
-        <label class="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2">
-          Colchón
-          <input type="number" v-model.number="colchon" min="0" class="w-16 p-1 border rounded text-center text-sm dark:bg-gray-700 dark:border-gray-600" />
-          días
-        </label>
+        <div class="flex items-center gap-4">
+          <label class="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2">
+            Colchón
+            <input type="number" v-model.number="colchon" min="0" class="w-16 p-1 border rounded text-center text-sm dark:bg-gray-700 dark:border-gray-600" />
+            días
+          </label>
+          <label class="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2">
+            Reducir
+            <input type="number" v-model.number="reduccion" min="0" max="100" class="w-16 p-1 border rounded text-center text-sm dark:bg-gray-700 dark:border-gray-600" />
+            %
+          </label>
+        </div>
       </div>
       <p class="text-xs text-gray-400 mb-4">
         Estimación según el consumo (salidas) del rango. El <strong>lead time</strong> (días que tarda en llegar), el
         <strong>objetivo</strong> (días de stock deseado) y las <strong>entregas/mes</strong> son editables por fila y se guardan
         en el producto. Si las entregas son &gt; 1, la sugerencia muestra el reparto. El <strong>colchón</strong> es un margen común.
+        <strong>Reducir %</strong> baja todas las sugerencias (porque ya tenéis stock en fábrica que la app no ve).
       </p>
       <div v-if="previsionCompra.length === 0" class="text-sm text-gray-400 py-4 text-center">
         No hay salidas en el rango para estimar la compra.
