@@ -27,27 +27,28 @@ const infoPorSku = computed(() => {
   return map;
 });
 
-// --- KPIs ---
-const totalPallets = computed(() =>
-  Object.values(materialStock.value || {}).reduce((s, c) => s + Number(c || 0), 0)
-);
-const totalUnidades = computed(() =>
-  Object.values(stockConUnidades.value || {}).reduce((s, x) => s + Number(x.unidades_totales || 0), 0)
-);
-const valorTotal = computed(() => {
-  let total = 0;
-  for (const [sku, cantidad] of Object.entries(materialStock.value || {})) {
-    total += Number(cantidad || 0) * (infoPorSku.value[sku]?.precio || 0);
+// --- Estado actual del inventario (misma fórmula que la pantalla de Stock) ---
+// valor = unidades_totales × precio_unitario (el precio es POR UNIDAD)
+const itemsInventario = computed(() => {
+  const out = [];
+  for (const [desc, datos] of Object.entries(productsWithSku.value || {})) {
+    const sku = datos.sku;
+    const pallets = Number(materialStock.value?.[sku] || 0);
+    const info = stockConUnidades.value?.[sku];
+    const unidadesPorPallet = datos.unidades_por_pallet || 1;
+    const unidades = info?.tiene_discrepancias ? Number(info.unidades_totales || 0) : pallets * unidadesPorPallet;
+    const precio = datos.precio_unitario || 0;
+    out.push({ desc, sku, pallets, unidades, valor: unidades * precio });
   }
-  return total;
+  return out;
 });
+
+const totalPallets = computed(() => itemsInventario.value.reduce((s, i) => s + i.pallets, 0));
+const totalUnidades = computed(() => itemsInventario.value.reduce((s, i) => s + i.unidades, 0));
+const valorTotal = computed(() => itemsInventario.value.reduce((s, i) => s + i.valor, 0));
 const numProductos = computed(() => Object.keys(productsWithSku.value || {}).length);
-const stockBajo = computed(() =>
-  Object.values(materialStock.value || {}).filter(c => Number(c) > 0 && Number(c) <= UMBRAL_STOCK_BAJO).length
-);
-const sinStock = computed(() =>
-  Object.values(materialStock.value || {}).filter(c => Number(c) === 0).length
-);
+const stockBajo = computed(() => itemsInventario.value.filter(i => i.pallets > 0 && i.pallets <= UMBRAL_STOCK_BAJO).length);
+const sinStock = computed(() => itemsInventario.value.filter(i => i.pallets === 0).length);
 
 // --- Movimientos del periodo ---
 const fechaCorte = computed(() => {
@@ -91,6 +92,23 @@ const totalSalidasPeriodo = computed(() =>
     s + (m.items || []).reduce((a, i) => a + Number(i.cantidad || 0), 0), 0)
 );
 
+// Valor en € movido en el periodo (≈ pallets × unidades/pallet × precio/unidad)
+function valorMovido(tipo) {
+  let total = 0;
+  for (const mov of movimientosPeriodo.value) {
+    if (mov.tipo !== tipo) continue;
+    for (const item of mov.items || []) {
+      const datos = productsWithSku.value?.[item.desc];
+      const upp = Number(item.unidades_por_pallet) || datos?.unidades_por_pallet || 1;
+      const precio = infoPorSku.value[item.sku]?.precio || datos?.precio_unitario || 0;
+      total += Number(item.cantidad || 0) * upp * precio;
+    }
+  }
+  return total;
+}
+const valorEntradasPeriodo = computed(() => valorMovido('Entrada'));
+const valorSalidasPeriodo = computed(() => valorMovido('Salida'));
+
 // --- Últimos movimientos ---
 const ultimosMovimientos = computed(() =>
   (movements.value || []).slice(0, 8).map(m => ({
@@ -125,7 +143,8 @@ const colorTipo = (tipo) => {
       </div>
     </div>
 
-    <!-- KPIs -->
+    <!-- KPIs: estado actual del inventario (no depende del periodo) -->
+    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Estado actual del inventario</p>
     <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
       <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <div class="flex items-center gap-3">
@@ -181,6 +200,7 @@ const colorTipo = (tipo) => {
         <div>
           <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Pallets recibidos ({{ periodo }})</p>
           <p class="text-2xl font-bold text-brandgreen-700 dark:text-brandgreen-100">{{ fmt(totalEntradasPeriodo) }}</p>
+          <p class="text-xs text-gray-500 dark:text-gray-400">≈ {{ fmtEur(valorEntradasPeriodo) }}</p>
         </div>
       </div>
       <div class="bg-brand-50 dark:bg-gray-800 p-4 rounded-lg border border-brand-100 dark:border-gray-700 flex items-center gap-3">
@@ -188,6 +208,7 @@ const colorTipo = (tipo) => {
         <div>
           <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Pallets despachados ({{ periodo }})</p>
           <p class="text-2xl font-bold text-brand-700 dark:text-brand-200">{{ fmt(totalSalidasPeriodo) }}</p>
+          <p class="text-xs text-gray-500 dark:text-gray-400">≈ {{ fmtEur(valorSalidasPeriodo) }}</p>
         </div>
       </div>
       <div class="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center gap-3">
