@@ -35,7 +35,7 @@ const prevDesde = computed(() => sumarDias(prevHasta.value, -(diasRango.value - 
 const infoPorSku = computed(() => {
   const map = {};
   for (const [desc, datos] of Object.entries(productsWithSku.value || {})) {
-    map[datos.sku] = { desc, precio: datos.precio_unitario || 0, leadTime: datos.lead_time ?? 7 };
+    map[datos.sku] = { desc, precio: datos.precio_unitario || 0, leadTime: datos.lead_time ?? 7, img: datos.url_imagen || null };
   }
   return map;
 });
@@ -133,6 +133,7 @@ const maxEntradas = computed(() => Math.max(1, ...topEntradas.value.map(r => r.p
 
 // --- Previsión de compra ---
 const diasObjetivo = ref(30); // para cuántos días quiero tener stock cubierto
+const colchon = ref(5);       // días extra de seguridad (imprevistos / picos de demanda)
 
 // Lead time POR PRODUCTO (guardado en cada material). Editable en la tabla.
 const leadEdit = ref({}); // sku -> valor en edición
@@ -169,11 +170,12 @@ const previsionCompra = computed(() => {
     const lead = getLead(sku); // lead time propio del producto
     // Margen real para pedir = días que te quedan menos lo que tarda en llegar
     const margen = coberturaDias - lead;
-    // La compra cubre el objetivo + lo que gastas mientras el pedido viaja
-    const sugerencia = Math.max(0, Math.ceil(consumoDiario * (lead + diasObjetivo.value) - stock));
+    // La compra cubre el transporte + el objetivo + el colchón de seguridad
+    const sugerencia = Math.max(0, Math.ceil(consumoDiario * (lead + diasObjetivo.value + colchon.value) - stock));
     filas.push({
       sku,
       desc: infoPorSku.value[sku]?.desc || sku,
+      img: infoPorSku.value[sku]?.img || null,
       stock,
       consumoDiario,
       coberturaDias,
@@ -351,15 +353,22 @@ const ultimosMovimientos = computed(() =>
         <h2 class="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
           <ArrowTrendingUpIcon class="w-5 h-5 text-brand-600" /> Previsión de compra
         </h2>
-        <label class="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2">
-          Cubrir
-          <input type="number" v-model.number="diasObjetivo" min="1" class="w-16 p-1 border rounded text-center text-sm dark:bg-gray-700 dark:border-gray-600" />
-          días
-        </label>
+        <div class="flex items-center gap-4">
+          <label class="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2">
+            Cubrir
+            <input type="number" v-model.number="diasObjetivo" min="1" class="w-16 p-1 border rounded text-center text-sm dark:bg-gray-700 dark:border-gray-600" />
+            días
+          </label>
+          <label class="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2">
+            Colchón
+            <input type="number" v-model.number="colchon" min="0" class="w-16 p-1 border rounded text-center text-sm dark:bg-gray-700 dark:border-gray-600" />
+            días
+          </label>
+        </div>
       </div>
       <p class="text-xs text-gray-400 mb-4">
         Estimación según el consumo (salidas) del rango. El <strong>lead time</strong> (días que tarda en llegar) es editable
-        en cada fila y se guarda en el producto. El <strong>margen</strong> es lo que te queda para pedir antes de quedarte sin stock.
+        en cada fila y se guarda en el producto. El <strong>colchón</strong> es un margen de seguridad para imprevistos.
       </p>
       <div v-if="previsionCompra.length === 0" class="text-sm text-gray-400 py-4 text-center">
         No hay salidas en el rango para estimar la compra.
@@ -380,7 +389,13 @@ const ultimosMovimientos = computed(() =>
           </thead>
           <tbody>
             <tr v-for="p in previsionCompra" :key="p.desc" class="border-b border-gray-100 dark:border-gray-700">
-              <td class="py-2 pr-2 text-gray-700 dark:text-gray-200">{{ p.desc }}</td>
+              <td class="py-2 pr-2">
+                <div class="flex items-center gap-2">
+                  <img v-if="p.img" :src="p.img" :alt="p.desc" class="w-8 h-8 rounded object-cover border border-gray-200 dark:border-gray-700 shrink-0" />
+                  <span v-else class="w-8 h-8 rounded bg-gray-100 dark:bg-gray-700 shrink-0"></span>
+                  <span class="text-gray-700 dark:text-gray-200">{{ p.desc }}</span>
+                </div>
+              </td>
               <td class="py-2 px-2 text-right">{{ fmt(p.stock) }}</td>
               <td class="py-2 px-2 text-right">{{ fmt1(p.consumoDiario) }}</td>
               <td class="py-2 px-2 text-right text-gray-600 dark:text-gray-300">
@@ -393,14 +408,14 @@ const ultimosMovimientos = computed(() =>
                   class="w-14 p-1 border rounded text-center text-sm dark:bg-gray-700 dark:border-gray-600"
                 />
               </td>
-              <td class="py-2 px-2 text-right font-semibold" :class="p.margen <= 0 ? 'text-brand-600' : (p.margen <= 3 ? 'text-amber-600' : 'text-gray-600 dark:text-gray-300')">
+              <td class="py-2 px-2 text-right font-semibold" :class="p.margen <= colchon ? 'text-brand-600' : (p.margen <= colchon + 3 ? 'text-amber-600' : 'text-gray-600 dark:text-gray-300')">
                 {{ p.margen <= 0 ? 'tarde' : fmt(Math.floor(p.margen)) + ' días' }}
               </td>
               <td class="py-2 px-2 text-right font-bold" :class="p.sugerencia > 0 ? 'text-brand-700 dark:text-brand-200' : 'text-gray-400'">
                 {{ p.sugerencia > 0 ? fmt(p.sugerencia) + ' pallets' : '—' }}
               </td>
               <td class="py-2 pl-2 text-center">
-                <span v-if="p.margen <= 0" class="text-xs font-bold px-2 py-0.5 rounded bg-brand-600 text-white">Pedir YA</span>
+                <span v-if="p.margen <= colchon" class="text-xs font-bold px-2 py-0.5 rounded bg-brand-600 text-white">Pedir YA</span>
                 <span v-else-if="p.coberturaDias < diasObjetivo" class="text-xs font-bold px-2 py-0.5 rounded bg-brand-100 text-brand-700">Pedir</span>
                 <span v-else class="text-xs font-bold px-2 py-0.5 rounded bg-brandgreen-100 text-brandgreen-700">OK</span>
               </td>
