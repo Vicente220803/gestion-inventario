@@ -31,7 +31,7 @@
 </template>
 
 <script setup>
-import { CubeIcon, ClockIcon, CogIcon, PlusIcon } from '@heroicons/vue/24/outline';
+import { CubeIcon, ClockIcon, CogIcon, PlusIcon, ChartBarIcon } from '@heroicons/vue/24/outline';
 import { computed, ref } from 'vue';
 
 // Logo desde public/logo.png. Si aún no está, mostramos el wordmark de texto.
@@ -45,6 +45,7 @@ import { profile } from '../authState';
 // const { profile } = useAuth() // Esta línea se elimina
 
 const allNavigation = [
+  { name: 'Dashboard', path: '/dashboard', icon: ChartBarIcon },
   { name: 'Stock', path: '/stock', icon: CubeIcon },
   { name: 'Historial', path: '/historial', icon: ClockIcon },
   { name: 'Entradas', path: '/incomings', icon: PlusIcon, roles: ['admin'] }, // <-- Mejora: Añadimos roles aquí
