@@ -88,16 +88,17 @@ BEGIN
       pallets_completos + pallets_incompletos, stock_actual;
   END IF;
 
+  -- Qualificamos con el alias sl: 'movimiento_id' choca con la variable local
   SELECT COALESCE(jsonb_agg(jsonb_build_object(
-    'pallets', pallets,
-    'unidades_por_pallet', unidades_por_pallet,
-    'unidades_totales', unidades_totales,
-    'fecha_entrada', fecha_entrada,
-    'movimiento_id', movimiento_id
+    'pallets', sl.pallets,
+    'unidades_por_pallet', sl.unidades_por_pallet,
+    'unidades_totales', sl.unidades_totales,
+    'fecha_entrada', sl.fecha_entrada,
+    'movimiento_id', sl.movimiento_id
   )), '[]'::jsonb)
   INTO lotes_anteriores
-  FROM stock_lotes
-  WHERE producto_sku = sku_producto;
+  FROM stock_lotes sl
+  WHERE sl.producto_sku = sku_producto;
 
   SELECT COALESCE(SUM(unidades_totales), 0) INTO unidades_antes
   FROM stock_lotes WHERE producto_sku = sku_producto;

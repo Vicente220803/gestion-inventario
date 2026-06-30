@@ -104,7 +104,7 @@ BEGIN
       SELECT id, pallets, unidades_por_pallet
       FROM stock_lotes
       WHERE producto_sku = sku_producto AND pallets > 0
-      ORDER BY fecha_entrada ASC
+      ORDER BY unidades_por_pallet ASC, fecha_entrada ASC  -- incompletos primero, luego FIFO
     LOOP
       IF pallets_a_consumir <= 0 THEN EXIT; END IF;
       IF lote.pallets <= pallets_a_consumir THEN
@@ -164,7 +164,7 @@ BEGIN
       SELECT id, pallets, unidades_por_pallet
       FROM stock_lotes
       WHERE producto_sku = sku_producto AND pallets > 0
-      ORDER BY fecha_entrada ASC
+      ORDER BY unidades_por_pallet ASC, fecha_entrada ASC  -- incompletos primero, luego FIFO
     LOOP
       IF pallets_a_consumir <= 0 THEN EXIT; END IF;
       IF lote.pallets <= pallets_a_consumir THEN
