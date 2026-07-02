@@ -20,8 +20,9 @@ const salidasHoy = computed(() => {
   const acc = {};
   for (const m of movements.value || []) {
     if (m.tipo !== 'Salida') continue;
-    const esHoy = m.fechaEntrega === hoy || (m.created_at || '').slice(0, 10) === hoy;
-    if (!esHoy) continue;
+    // "Salida de hoy" = la que se ha hecho hoy (fecha del pedido = hoy),
+    // no la que se entrega hoy. Cada día avanza solo.
+    if (m.fechaPedido !== hoy) continue;
     for (const it of m.items || []) {
       if (!it.sku) continue;
       if (!acc[it.sku]) acc[it.sku] = { sku: it.sku, desc: it.desc || it.sku, pallets: 0 };
