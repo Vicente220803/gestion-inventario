@@ -4,6 +4,11 @@ import { user, profile } from './authState';
 
 // Ya no necesitamos importar useInventory aquí.
 
+// Pantalla de aterrizaje según el rol (gescotrans solo tiene Picking).
+function landingRoute(role) {
+  return role === 'gescotrans' ? 'Picking' : 'NewOrder';
+}
+
 async function fetchProfile(sessionUser) {
   try {
     const { data, error } = await supabase
@@ -36,7 +41,8 @@ const routes = [
       { path: 'incomings', name: 'Incomings', component: () => import('./views/IncomingsView.vue'), meta: { allowedRoles: ['admin'] } },
       { path: 'settings', name: 'Settings', component: () => import('./views/SettingsView.vue'), meta: { allowedRoles: ['admin'] } },
       { path: 'new-order', name: 'NewOrder', component: () => import('./views/NewOrderView.vue'), meta: { allowedRoles: ['admin', 'operario'] } },
-      { path: 'dashboard', name: 'Dashboard', component: () => import('./views/DashboardView.vue'), meta: { allowedRoles: ['admin', 'operario'] } }
+      { path: 'dashboard', name: 'Dashboard', component: () => import('./views/DashboardView.vue'), meta: { allowedRoles: ['admin', 'operario'] } },
+      { path: 'picking', name: 'Picking', component: () => import('./views/PickingView.vue'), meta: { allowedRoles: ['admin', 'operario', 'gescotrans'] } }
     ]
   }
 ];
@@ -67,11 +73,11 @@ router.beforeEach(async (to, from, next) => {
   }
 
   if (to.name === 'Login' && currentUser) {
-    return next({ name: 'NewOrder' });
+    return next({ name: landingRoute(profile.value?.role) });
   }
 
   if (allowedRoles && profile.value && !allowedRoles.includes(profile.value.role)) {
-    return next({ name: 'NewOrder' });
+    return next({ name: landingRoute(profile.value.role) });
   }
 
   next();

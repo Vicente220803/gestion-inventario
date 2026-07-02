@@ -31,7 +31,7 @@
 </template>
 
 <script setup>
-import { CubeIcon, ClockIcon, CogIcon, PlusIcon, ChartBarIcon } from '@heroicons/vue/24/outline';
+import { CubeIcon, ClockIcon, CogIcon, PlusIcon, ChartBarIcon, QrCodeIcon } from '@heroicons/vue/24/outline';
 import { computed, ref } from 'vue';
 
 // Logo desde public/logo.png. Si aún no está, mostramos el wordmark de texto.
@@ -45,11 +45,12 @@ import { profile } from '../authState';
 // const { profile } = useAuth() // Esta línea se elimina
 
 const allNavigation = [
-  { name: 'Dashboard', path: '/dashboard', icon: ChartBarIcon },
-  { name: 'Stock', path: '/stock', icon: CubeIcon },
-  { name: 'Historial', path: '/historial', icon: ClockIcon },
+  { name: 'Dashboard', path: '/dashboard', icon: ChartBarIcon, roles: ['admin', 'operario'] },
+  { name: 'Stock', path: '/stock', icon: CubeIcon, roles: ['admin', 'operario'] },
+  { name: 'Historial', path: '/historial', icon: ClockIcon, roles: ['admin', 'operario'] },
   { name: 'Entradas', path: '/incomings', icon: PlusIcon, roles: ['admin'] }, // <-- Mejora: Añadimos roles aquí
   { name: 'Nuevo Pedido', path: '/new-order', icon: PlusIcon, roles: ['admin', 'operario'] },
+  { name: 'Picking', path: '/picking', icon: QrCodeIcon, roles: ['admin', 'operario', 'gescotrans'] },
   { name: 'Materiales', path: '/settings', icon: CogIcon, roles: ['admin'] },
 ];
 
