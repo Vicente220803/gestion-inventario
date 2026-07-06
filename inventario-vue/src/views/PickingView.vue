@@ -8,8 +8,8 @@ import { useToasts } from '../composables/useToasts';
 const { movements } = useInventory();
 const { showSuccess, showError, showInfo } = useToasts();
 
-// TODO: pegar aquí el webhook de n8n cuando lo creemos juntos (webhook -> email).
-const PICKING_WEBHOOK_URL = '';
+// Webhook de n8n "PICKING → Email" (webhook -> Gmail a operaciones y logística).
+const PICKING_WEBHOOK_URL = 'https://surexportlevante.app.n8n.cloud/webhook/picking-email';
 const DESTINATARIO = 'operacioneslevante@surexport.es, logisticalevante@surexport.es';
 
 const hoy = new Date().toISOString().slice(0, 10);
