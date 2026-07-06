@@ -67,6 +67,20 @@ Schema: public | Tabla: notifications  (RLS: on)
   - created_at (timestamp with time zone) [default now()]
   - user_id (uuid) NOT NULL  [FK -> auth.users.id, default auth.uid()]
 
+Schema: public | Tabla: picking_salidas  (RLS: on)  -- creada 2026-07-06
+  - id (bigint) NOT NULL  [PK, identity]
+  - fecha (date) NOT NULL
+  - sku (text) NOT NULL
+  - referencia (text)
+  - pallets (integer) NOT NULL [default 0]
+  - hus (jsonb) NOT NULL [default '[]']  -- lista de HU escaneados de esa referencia
+  - sin_hu (boolean) NOT NULL [default false]  -- material que no lleva HU
+  - enviado (boolean) NOT NULL [default false]
+  - enviado_at (timestamptz)
+  - created_at (timestamptz) NOT NULL [default now()]
+  - updated_at (timestamptz) NOT NULL [default now()]
+  - UNIQUE (fecha, sku)  -- cuerpo en crear_picking_salidas.sql
+
 Schema: public | Tabla: pdf_email_queue  (RLS: on)
   - id (uuid) NOT NULL  [PK, default gen_random_uuid()]
   - pdf_base64 (text)

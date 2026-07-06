@@ -31,7 +31,7 @@
 </template>
 
 <script setup>
-import { CubeIcon, ClockIcon, CogIcon, PlusIcon, ChartBarIcon, QrCodeIcon } from '@heroicons/vue/24/outline';
+import { CubeIcon, ClockIcon, CogIcon, PlusIcon, ChartBarIcon, QrCodeIcon, ClipboardDocumentListIcon } from '@heroicons/vue/24/outline';
 import { computed, ref } from 'vue';
 
 // Logo desde public/logo.png. Si aún no está, mostramos el wordmark de texto.
@@ -51,6 +51,7 @@ const allNavigation = [
   { name: 'Entradas', path: '/incomings', icon: PlusIcon, roles: ['admin'] }, // <-- Mejora: Añadimos roles aquí
   { name: 'Nuevo Pedido', path: '/new-order', icon: PlusIcon, roles: ['admin', 'operario'] },
   { name: 'Picking', path: '/picking', icon: QrCodeIcon, roles: ['admin', 'operario', 'gescotrans'] },
+  { name: 'Historial Picking', path: '/picking-historial', icon: ClipboardDocumentListIcon, roles: ['admin', 'operario', 'gescotrans'] },
   { name: 'Materiales', path: '/settings', icon: CogIcon, roles: ['admin'] },
 ];
 

@@ -42,7 +42,8 @@ const routes = [
       { path: 'settings', name: 'Settings', component: () => import('./views/SettingsView.vue'), meta: { allowedRoles: ['admin'] } },
       { path: 'new-order', name: 'NewOrder', component: () => import('./views/NewOrderView.vue'), meta: { allowedRoles: ['admin', 'operario'] } },
       { path: 'dashboard', name: 'Dashboard', component: () => import('./views/DashboardView.vue'), meta: { allowedRoles: ['admin', 'operario'] } },
-      { path: 'picking', name: 'Picking', component: () => import('./views/PickingView.vue'), meta: { allowedRoles: ['admin', 'operario', 'gescotrans'] } }
+      { path: 'picking', name: 'Picking', component: () => import('./views/PickingView.vue'), meta: { allowedRoles: ['admin', 'operario', 'gescotrans'] } },
+      { path: 'picking-historial', name: 'PickingHistorial', component: () => import('./views/PickingHistoryView.vue'), meta: { allowedRoles: ['admin', 'operario', 'gescotrans'] } }
     ]
   }
 ];

@@ -3,12 +3,13 @@ import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import { QrCodeIcon, PaperAirplaneIcon, CheckCircleIcon, NoSymbolIcon } from '@heroicons/vue/24/outline';
 import { user } from '../authState';
 import { useInventory } from '../composables/useInventory';
+import { usePicking } from '../composables/usePicking';
 import { useToasts } from '../composables/useToasts';
 
 const { movements } = useInventory();
+const { fetchByFecha, savePicking } = usePicking();
 const { showSuccess, showError, showInfo } = useToasts();
 
-// Webhook de n8n "PICKING → Email" (webhook -> Gmail a operaciones y logística).
 const PICKING_WEBHOOK_URL = 'https://surexportlevante.app.n8n.cloud/webhook/picking-email';
 const DESTINATARIO = 'operacioneslevante@surexport.es, logisticalevante@surexport.es';
 
@@ -20,9 +21,7 @@ const salidasHoy = computed(() => {
   const acc = {};
   for (const m of movements.value || []) {
     if (m.tipo !== 'Salida') continue;
-    // "Salida de hoy" = la que se ha hecho hoy (fecha del pedido = hoy),
-    // no la que se entrega hoy. Cada día avanza solo.
-    if (m.fechaPedido !== hoy) continue;
+    if (m.fechaPedido !== hoy) continue; // la salida hecha hoy (avanza solo cada día)
     for (const it of m.items || []) {
       if (!it.sku) continue;
       if (!acc[it.sku]) acc[it.sku] = { sku: it.sku, desc: it.desc || it.sku, pallets: 0 };
@@ -34,28 +33,68 @@ const salidasHoy = computed(() => {
 
 const totalPallets = computed(() => salidasHoy.value.reduce((s, r) => s + r.pallets, 0));
 
-// --- Estado de HU por referencia (persistido por día) ---
-// { [sku]: { hus: string[] (una casilla por pallet), noHU: boolean } }
-const claveDia = `picking_hu_${hoy}`;
-const estado = ref(JSON.parse(localStorage.getItem(claveDia) || '{}'));
-watch(estado, v => localStorage.setItem(claveDia, JSON.stringify(v)), { deep: true });
+// --- Estado de HU por referencia (fuente de verdad: BD) ---
+const estado = ref({});          // sku -> { hus: string[], noHU: boolean }
+const enviadoHoy = ref(false);
+const dbHoy = ref({});           // sku -> fila de BD
+const aplicados = new Set();     // skus cuyo dato de BD ya se volcó al estado
+let listo = false;               // no autoguardar hasta cargar la BD
 
-// Asegura una casilla por pallet en cada referencia (sin perder lo ya escaneado)
-watch(salidasHoy, (refs) => {
-  for (const r of refs) {
+const fit = (arr, n) => Array.from({ length: n }, (_, i) => (arr && arr[i]) || '');
+
+function reconciliar() {
+  for (const r of salidasHoy.value) {
+    if (!estado.value[r.sku]) estado.value[r.sku] = { hus: [], noHU: false };
     const e = estado.value[r.sku];
-    if (!e) {
-      estado.value[r.sku] = { hus: Array(r.pallets).fill(''), noHU: false };
-    } else if (e.hus.length !== r.pallets) {
-      const nuevo = Array(r.pallets).fill('');
-      for (let i = 0; i < Math.min(e.hus.length, r.pallets); i++) nuevo[i] = e.hus[i];
-      e.hus = nuevo;
+    const db = dbHoy.value[r.sku];
+    if (db && !aplicados.has(r.sku)) {
+      e.hus = fit(db.hus, r.pallets);
+      e.noHU = !!db.sin_hu;
+      aplicados.add(r.sku);
     }
+    if (e.hus.length !== r.pallets) e.hus = fit(e.hus, r.pallets);
   }
-}, { immediate: true });
+}
+watch(salidasHoy, reconciliar, { immediate: true });
+
+onMounted(async () => {
+  try {
+    const filas = await fetchByFecha(hoy);
+    dbHoy.value = Object.fromEntries(filas.map(f => [f.sku, f]));
+    enviadoHoy.value = filas.some(f => f.enviado);
+    reconciliar();
+  } catch (e) {
+    showError('No se pudo cargar el picking guardado: ' + e.message);
+  } finally {
+    listo = true;
+    const primera = salidasHoy.value.find(r => !completa(r));
+    if (primera && !estado.value[primera.sku].noHU) foco(primera.sku, 0);
+  }
+});
+
+// --- Autoguardado en BD (según se escanea) ---
+function filasParaGuardar(extra = {}) {
+  return salidasHoy.value.map(r => ({
+    fecha: hoy,
+    sku: r.sku,
+    referencia: r.desc,
+    pallets: r.pallets,
+    hus: estado.value[r.sku]?.noHU ? [] : (estado.value[r.sku]?.hus || []).map(h => (h || '').trim()),
+    sin_hu: !!estado.value[r.sku]?.noHU,
+    ...extra,
+  }));
+}
+let tGuardado = null;
+watch(estado, () => {
+  if (!listo) return;
+  clearTimeout(tGuardado);
+  tGuardado = setTimeout(() => {
+    savePicking(filasParaGuardar()).catch(e => console.warn('Autoguardado picking:', e.message));
+  }, 800);
+}, { deep: true });
 
 // --- Foco entre casillas ---
-const inputEls = {}; // `${sku}_${i}` -> elemento
+const inputEls = {};
 const setInput = (sku, i) => (el) => { if (el) inputEls[`${sku}_${i}`] = el; };
 const foco = (sku, i) => nextTick(() => inputEls[`${sku}_${i}`]?.focus());
 
@@ -67,12 +106,10 @@ const completa = (r) => {
 const numListas = computed(() => salidasHoy.value.filter(completa).length);
 const todoCompleto = computed(() => salidasHoy.value.length > 0 && numListas.value === salidasHoy.value.length);
 
-// Al escanear en una casilla (la pistola manda Enter), saltar a la siguiente vacía
 function siguiente(r) {
   const e = estado.value[r.sku];
   const vacia = e.hus.findIndex(h => !(h || '').trim());
   if (vacia !== -1) return foco(r.sku, vacia);
-  // Referencia completa -> primera casilla vacía de la siguiente referencia pendiente
   const sig = salidasHoy.value.find(x => !completa(x));
   if (sig && !estado.value[sig.sku].noHU) {
     const j = estado.value[sig.sku].hus.findIndex(h => !(h || '').trim());
@@ -91,20 +128,14 @@ function toggleNoHU(r) {
   }
 }
 
-onMounted(() => {
-  const primera = salidasHoy.value.find(r => !completa(r));
-  if (primera && !estado.value[primera.sku].noHU) foco(primera.sku, 0);
-});
-
 const enviando = ref(false);
 async function enviar() {
   if (!todoCompleto.value) { showError('Faltan referencias por completar.'); return; }
-  if (!PICKING_WEBHOOK_URL) {
-    showInfo('El envío por correo se configurará con n8n (pendiente). Los datos se mantienen.');
-    return;
-  }
   enviando.value = true;
   try {
+    // 1) Guardar los HU (por si el correo falla, el registro queda)
+    await savePicking(filasParaGuardar());
+    // 2) Enviar el correo
     const payload = {
       fecha: hoyTxt,
       usuario: user.value?.email || 'desconocido',
@@ -118,14 +149,13 @@ async function enviar() {
       })),
     };
     const res = await fetch(PICKING_WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error('Respuesta ' + res.status);
+    // 3) Marcar como enviado en BD (se conservan los HU, queda editable)
+    await savePicking(filasParaGuardar({ enviado: true, enviado_at: new Date().toISOString() }));
+    enviadoHoy.value = true;
     showSuccess('Formulario de picking enviado.');
-    estado.value = {};
-    localStorage.removeItem(claveDia);
   } catch (e) {
     showError('No se pudo enviar el formulario: ' + e.message);
   } finally {
@@ -139,10 +169,15 @@ async function enviar() {
     <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-1 flex items-center gap-2">
       <QrCodeIcon class="w-8 h-8 text-brand-600" /> Picking
     </h1>
-    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
       Salidas de <strong>hoy ({{ hoyTxt }})</strong>. Escanea un HU en cada casilla con la pistola.
       Si un material no lleva HU, pulsa <strong>"No tiene HU"</strong>. Cuando estén todas listas podrás enviar el correo.
     </p>
+
+    <!-- Banner enviado -->
+    <div v-if="enviadoHoy" class="mb-4 flex items-center gap-2 bg-brandgreen-50 dark:bg-gray-800 border border-brandgreen-200 dark:border-gray-700 text-brandgreen-700 dark:text-brandgreen-200 text-sm font-semibold px-4 py-2.5 rounded-lg">
+      <CheckCircleIcon class="w-5 h-5" /> Picking de hoy enviado. Puedes seguir editando y reenviar si hace falta.
+    </div>
 
     <!-- Resumen -->
     <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-6 flex flex-wrap gap-6">
@@ -201,7 +236,6 @@ async function enviar() {
           </div>
         </div>
 
-        <!-- Una casilla por pallet -->
         <div v-if="!estado[r.sku]?.noHU" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div v-for="(hu, i) in estado[r.sku].hus" :key="i" class="flex items-center gap-2">
             <span class="text-xs font-semibold text-gray-400 w-6 text-right shrink-0">{{ i + 1 }}</span>
@@ -229,7 +263,7 @@ async function enviar() {
       class="w-full flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-lg text-lg transition-colors"
     >
       <PaperAirplaneIcon class="w-6 h-6" />
-      {{ enviando ? 'Enviando…' : (todoCompleto ? 'Enviar formulario' : `Faltan ${salidasHoy.length - numListas} referencias`) }}
+      {{ enviando ? 'Enviando…' : (todoCompleto ? (enviadoHoy ? 'Reenviar formulario' : 'Enviar formulario') : `Faltan ${salidasHoy.length - numListas} referencias`) }}
     </button>
   </div>
 </template>
