@@ -175,11 +175,25 @@ async function enviar() {
       Si un material no lleva HU, pulsa <strong>"No tiene HU"</strong>. Cuando estén todas listas podrás enviar el correo.
     </p>
 
-    <!-- Banner enviado -->
-    <div v-if="enviadoHoy" class="mb-4 flex items-center gap-2 bg-brandgreen-50 dark:bg-gray-800 border border-brandgreen-200 dark:border-gray-700 text-brandgreen-700 dark:text-brandgreen-200 text-sm font-semibold px-4 py-2.5 rounded-lg">
-      <CheckCircleIcon class="w-5 h-5" /> Picking de hoy enviado. Puedes seguir editando y reenviar si hace falta.
+    <!-- Sin salidas -->
+    <div v-if="salidasHoy.length === 0" class="bg-white dark:bg-gray-800 p-10 rounded-lg border border-gray-200 dark:border-gray-700 text-center text-gray-400">
+      Hoy todavía no hay salidas registradas.
     </div>
 
+    <!-- Ya enviado: el formulario desaparece hasta el picking del día siguiente -->
+    <div v-else-if="enviadoHoy" class="bg-white dark:bg-gray-800 p-10 rounded-lg border border-gray-200 dark:border-gray-700 text-center">
+      <CheckCircleIcon class="w-12 h-12 text-brandgreen-500 mx-auto mb-3" />
+      <p class="text-lg font-bold text-gray-800 dark:text-white mb-1">El picking de hoy ya se ha enviado</p>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        Para ver o modificar los HU, entra en el historial.
+      </p>
+      <router-link to="/picking-historial" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-semibold">
+        Ir a Historial Picking
+      </router-link>
+    </div>
+
+    <!-- Formulario del picking pendiente -->
+    <template v-else>
     <!-- Resumen -->
     <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-6 flex flex-wrap gap-6">
       <div>
@@ -198,13 +212,8 @@ async function enviar() {
       </div>
     </div>
 
-    <!-- Sin salidas -->
-    <div v-if="salidasHoy.length === 0" class="bg-white dark:bg-gray-800 p-10 rounded-lg border border-gray-200 dark:border-gray-700 text-center text-gray-400">
-      Hoy todavía no hay salidas registradas.
-    </div>
-
     <!-- Referencias -->
-    <div v-else class="space-y-4 mb-6">
+    <div class="space-y-4 mb-6">
       <div
         v-for="r in salidasHoy"
         :key="r.sku"
@@ -258,13 +267,13 @@ async function enviar() {
 
     <!-- Enviar -->
     <button
-      v-if="salidasHoy.length > 0"
       @click="enviar"
       :disabled="enviando || !todoCompleto"
       class="w-full flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-lg text-lg transition-colors"
     >
       <PaperAirplaneIcon class="w-6 h-6" />
-      {{ enviando ? 'Enviando…' : (todoCompleto ? (enviadoHoy ? 'Reenviar formulario' : 'Enviar formulario') : `Faltan ${salidasHoy.length - numListas} referencias`) }}
+      {{ enviando ? 'Enviando…' : (todoCompleto ? 'Enviar formulario' : `Faltan ${salidasHoy.length - numListas} referencias`) }}
     </button>
+    </template>
   </div>
 </template>
