@@ -6,7 +6,8 @@ import { useToasts } from '../composables/useToasts';
 import { user } from '../authState';
 
 const PICKING_WEBHOOK_URL = 'https://surexportlevante.app.n8n.cloud/webhook/picking-email';
-const DESTINATARIO = 'operacioneslevante@surexport.es, logisticalevante@surexport.es';
+// EN PRUEBAS: se envía solo a Vicente. Volver a operaciones+logística al terminar.
+const DESTINATARIO = 'vicentemarco@surexport.es';
 
 const { fetchHistorial, savePicking } = usePicking();
 const { showSuccess, showError } = useToasts();

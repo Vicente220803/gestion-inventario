@@ -11,7 +11,8 @@ const { fetchByFecha, savePicking } = usePicking();
 const { showSuccess, showError, showInfo } = useToasts();
 
 const PICKING_WEBHOOK_URL = 'https://surexportlevante.app.n8n.cloud/webhook/picking-email';
-const DESTINATARIO = 'operacioneslevante@surexport.es, logisticalevante@surexport.es';
+// EN PRUEBAS: se envía solo a Vicente. Volver a operaciones+logística al terminar.
+const DESTINATARIO = 'vicentemarco@surexport.es';
 
 const hoy = new Date().toISOString().slice(0, 10);
 const hoyTxt = new Date().toLocaleDateString('es-ES');
