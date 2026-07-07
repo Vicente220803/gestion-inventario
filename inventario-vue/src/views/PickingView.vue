@@ -134,7 +134,9 @@ function toggleNoHU(r) {
 const scanOpen = ref(false);
 const scanSku = ref(null);
 const scanRef = computed(() => salidasHoy.value.find(r => r.sku === scanSku.value) || null);
-function abrirScanner(r) { scanSku.value = r.sku; scanOpen.value = true; }
+const pingOk = ref(0);       // se incrementa al aceptar un HU (dispara el tick verde)
+const ultimoHU = ref('');
+function abrirScanner(r) { scanSku.value = r.sku; ultimoHU.value = ''; scanOpen.value = true; }
 function cerrarScanner() { scanOpen.value = false; scanSku.value = null; }
 function onEscaneo(code) {
   const r = scanRef.value;
@@ -147,7 +149,9 @@ function onEscaneo(code) {
   const idx = e.hus.findIndex(h => !(h || '').trim());
   if (idx === -1) return; // ya está llena
   e.hus[idx] = c;
-  if (completa(r)) { cerrarScanner(); showSuccess(`${r.desc}: completa.`); }
+  ultimoHU.value = c;
+  pingOk.value++;          // confirma visualmente (tick verde + vibración)
+  if (completa(r)) { setTimeout(cerrarScanner, 700); showSuccess(`${r.desc}: completa.`); }
 }
 
 const enviando = ref(false);
@@ -308,7 +312,10 @@ async function enviar() {
     <BarcodeScanner
       :open="scanOpen"
       :titulo="scanRef ? scanRef.desc : 'Escanear'"
-      :info="scanRef ? `HU ${llenas(scanRef) + 1} de ${scanRef.pallets}` : ''"
+      :hechas="scanRef ? llenas(scanRef) : 0"
+      :total="scanRef ? scanRef.pallets : 0"
+      :ultimo="ultimoHU"
+      :ok-signal="pingOk"
       @detected="onEscaneo"
       @close="cerrarScanner"
     />

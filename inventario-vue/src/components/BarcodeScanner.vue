@@ -2,7 +2,7 @@
 import { ref, watch, nextTick, onBeforeUnmount } from 'vue';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import { DecodeHintType, BarcodeFormat } from '@zxing/library';
-import { XMarkIcon } from '@heroicons/vue/24/outline';
+import { XMarkIcon, CheckCircleIcon } from '@heroicons/vue/24/outline';
 
 // Formatos habituales de HU/etiquetas + insistir en la lectura (1D cuesta más)
 const hints = new Map();
@@ -16,16 +16,27 @@ hints.set(DecodeHintType.POSSIBLE_FORMATS, [
 const props = defineProps({
   open: { type: Boolean, default: false },
   titulo: { type: String, default: 'Escanear' },
-  info: { type: String, default: '' },
+  hechas: { type: Number, default: 0 },
+  total: { type: Number, default: 0 },
+  ultimo: { type: String, default: '' },
+  okSignal: { type: Number, default: 0 },   // el padre lo incrementa cuando ACEPTA un HU
 });
 const emit = defineEmits(['close', 'detected']);
 
 const videoEl = ref(null);
 const error = ref('');
+const flash = ref(false);
 let reader = null;
 let controls = null;
 let lastCode = '';
 let lastTime = 0;
+
+// Destello verde + vibración solo cuando el padre confirma que ha añadido un HU
+watch(() => props.okSignal, () => {
+  flash.value = true;
+  if (navigator.vibrate) navigator.vibrate(80);
+  setTimeout(() => { flash.value = false; }, 700);
+});
 
 async function start() {
   error.value = '';
@@ -39,11 +50,9 @@ async function start() {
         if (!result) return;
         const text = result.getText();
         const now = Date.now();
-        // Evita repetir el mismo código en ráfaga
         if (text === lastCode && now - lastTime < 1500) return;
         lastCode = text;
         lastTime = now;
-        if (navigator.vibrate) navigator.vibrate(60);
         emit('detected', text);
       }
     );
@@ -76,13 +85,29 @@ onBeforeUnmount(stop);
         <video ref="videoEl" class="w-full h-full object-cover" autoplay muted playsinline></video>
         <!-- Marco guía -->
         <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div class="w-4/5 h-24 border-2 border-brand-400 rounded-lg"></div>
+          <div class="w-4/5 h-24 rounded-lg border-2 transition-colors duration-150"
+               :class="flash ? 'border-brandgreen-400' : 'border-brand-400'"></div>
+        </div>
+        <!-- Destello verde + tick al captar -->
+        <transition name="fade">
+          <div v-if="flash" class="absolute inset-0 flex items-center justify-center bg-brandgreen-500/30">
+            <CheckCircleIcon class="w-32 h-32 text-brandgreen-400 drop-shadow-lg" />
+          </div>
+        </transition>
+        <!-- Contador grande arriba -->
+        <div class="absolute top-3 left-1/2 -translate-x-1/2 bg-black/60 text-white text-lg font-bold px-4 py-1.5 rounded-full">
+          {{ hechas }} / {{ total }} HU
         </div>
       </div>
 
       <div class="p-3 text-center">
         <p v-if="error" class="text-sm text-brand-600">{{ error }}</p>
-        <p v-else class="text-sm text-gray-500 dark:text-gray-300">{{ info || 'Apunta al código de barras del HU' }}</p>
+        <template v-else>
+          <p v-if="ultimo" class="text-sm font-semibold text-brandgreen-600 flex items-center justify-center gap-1">
+            <CheckCircleIcon class="w-4 h-4" /> Último: <span class="font-mono">{{ ultimo }}</span>
+          </p>
+          <p v-else class="text-sm text-gray-500 dark:text-gray-300">Apunta al código de barras del HU</p>
+        </template>
         <button @click="emit('close')" class="mt-3 w-full py-2.5 rounded-lg bg-gray-700 hover:bg-gray-800 text-white font-semibold">
           Terminar
         </button>
@@ -90,3 +115,8 @@ onBeforeUnmount(stop);
     </div>
   </div>
 </template>
+
+<style scoped>
+.fade-enter-active, .fade-leave-active { transition: opacity .15s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+</style>
