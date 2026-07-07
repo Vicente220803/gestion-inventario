@@ -88,7 +88,7 @@ function filasParaGuardar(extra = {}) {
 }
 let tGuardado = null;
 watch(estado, () => {
-  if (!listo) return;
+  if (!listo || hayDuplicados.value) return; // no guardar si hay HU repetidos
   clearTimeout(tGuardado);
   tGuardado = setTimeout(() => {
     savePicking(filasParaGuardar()).catch(e => console.warn('Autoguardado picking:', e.message));
@@ -107,6 +107,22 @@ const completa = (r) => {
 };
 const numListas = computed(() => salidasHoy.value.filter(completa).length);
 const todoCompleto = computed(() => salidasHoy.value.length > 0 && numListas.value === salidasHoy.value.length);
+
+// Un HU no puede repetirse en NINGUNA referencia del día
+function huExiste(code) {
+  return salidasHoy.value.some(r => (estado.value[r.sku]?.hus || []).some(h => (h || '').trim() === code));
+}
+const duplicados = computed(() => {
+  const cont = {};
+  for (const r of salidasHoy.value) {
+    for (const h of (estado.value[r.sku]?.hus || [])) {
+      const c = (h || '').trim(); if (!c) continue;
+      cont[c] = (cont[c] || 0) + 1;
+    }
+  }
+  return new Set(Object.keys(cont).filter(k => cont[k] > 1));
+});
+const hayDuplicados = computed(() => duplicados.value.size > 0);
 
 function siguiente(r) {
   const e = estado.value[r.sku];
@@ -145,7 +161,7 @@ function onEscaneo(code) {
   if (e.noHU) return;
   const c = (code || '').trim();
   if (!c) return;
-  if (e.hus.some(h => (h || '').trim() === c)) { showInfo('Ese HU ya estaba escaneado.'); return; }
+  if (huExiste(c)) { showInfo('Ese HU ya está escaneado (en esta o en otra referencia).'); return; }
   const idx = e.hus.findIndex(h => !(h || '').trim());
   if (idx === -1) return; // ya está llena
   e.hus[idx] = c;
@@ -156,6 +172,7 @@ function onEscaneo(code) {
 
 const enviando = ref(false);
 async function enviar() {
+  if (hayDuplicados.value) { showError('Hay HU repetidos: ' + [...duplicados.value].join(', ')); return; }
   if (!todoCompleto.value) { showError('Faltan referencias por completar.'); return; }
   enviando.value = true;
   try {
@@ -289,7 +306,7 @@ async function enviar() {
               :placeholder="`HU ${i + 1}`"
               @keydown.enter.prevent="siguiente(r)"
               class="flex-1 p-2 border rounded-lg font-mono text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              :class="(hu || '').trim() ? 'border-brandgreen-400 bg-brandgreen-50 dark:bg-gray-700' : 'border-gray-300'"
+              :class="(hu || '').trim() && duplicados.has((hu || '').trim()) ? 'border-red-500 bg-red-50 dark:bg-red-900/30' : ((hu || '').trim() ? 'border-brandgreen-400 bg-brandgreen-50 dark:bg-gray-700' : 'border-gray-300')"
             />
           </div>
         </div>
@@ -297,14 +314,20 @@ async function enviar() {
       </div>
     </div>
 
+    <!-- Aviso de HU repetidos -->
+    <div v-if="hayDuplicados" class="mb-3 flex items-start gap-2 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-800 text-red-700 dark:text-red-300 text-sm font-semibold px-4 py-2.5 rounded-lg">
+      <NoSymbolIcon class="w-5 h-5 shrink-0 mt-0.5" />
+      <span>HU repetido, revísalo antes de enviar: <span class="font-mono">{{ [...duplicados].join(', ') }}</span></span>
+    </div>
+
     <!-- Enviar -->
     <button
       @click="enviar"
-      :disabled="enviando || !todoCompleto"
+      :disabled="enviando || !todoCompleto || hayDuplicados"
       class="w-full flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-lg text-lg transition-colors"
     >
       <PaperAirplaneIcon class="w-6 h-6" />
-      {{ enviando ? 'Enviando…' : (todoCompleto ? 'Enviar formulario' : `Faltan ${salidasHoy.length - numListas} referencias`) }}
+      {{ enviando ? 'Enviando…' : (hayDuplicados ? 'HU repetido' : (todoCompleto ? 'Enviar formulario' : `Faltan ${salidasHoy.length - numListas} referencias`)) }}
     </button>
     </template>
 

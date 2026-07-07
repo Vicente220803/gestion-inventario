@@ -26,13 +26,27 @@ function onEscaneo(code) {
   if (!r || r.sin_hu) return;
   const c = (code || '').trim();
   if (!c) return;
-  if (r.hus.some(h => (h || '').trim() === c)) { showInfo('Ese HU ya estaba escaneado.'); return; }
+  if (huExisteEnDia(r.fecha, c)) { showInfo('Ese HU ya está escaneado (en esta o en otra referencia).'); return; }
   const idx = r.hus.findIndex(h => !(h || '').trim());
   if (idx === -1) return;
   r.hus[idx] = c;
   ultimoHU.value = c;
   pingOk.value++;
   if (llenas(r) === r.pallets) { setTimeout(cerrarScanner, 700); showSuccess(`${r.referencia}: completa.`); }
+}
+
+// Un HU no puede repetirse en NINGUNA referencia del mismo día
+function huExisteEnDia(fecha, code) {
+  const d = dias.value.find(x => x.fecha === fecha);
+  return !!d && d.refs.some(r => (r.hus || []).some(h => (h || '').trim() === code));
+}
+function dupSet(d) {
+  const cont = {};
+  for (const r of d.refs) {
+    if (r.sin_hu) continue;
+    for (const h of r.hus || []) { const c = (h || '').trim(); if (!c) continue; cont[c] = (cont[c] || 0) + 1; }
+  }
+  return new Set(Object.keys(cont).filter(k => cont[k] > 1));
 }
 
 const filas = ref([]);
@@ -87,6 +101,8 @@ function payloadDia(d, extra = {}) {
 }
 
 async function guardar(d) {
+  const dup = [...dupSet(d)];
+  if (dup.length) { showError('HU repetido, revísalo: ' + dup.join(', ')); return; }
   guardando.value = true;
   try {
     await savePicking(payloadDia(d));
@@ -96,6 +112,8 @@ async function guardar(d) {
 }
 
 async function reenviar(d) {
+  const dup = [...dupSet(d)];
+  if (dup.length) { showError('HU repetido, revísalo: ' + dup.join(', ')); return; }
   reenviando.value = true;
   try {
     await savePicking(payloadDia(d));
@@ -173,7 +191,7 @@ async function reenviar(d) {
                   v-model="r.hus[i]"
                   type="text" autocomplete="off" :placeholder="`HU ${i + 1}`"
                   class="flex-1 p-2 border rounded-lg font-mono text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  :class="(hu || '').trim() ? 'border-brandgreen-400 bg-brandgreen-50 dark:bg-gray-700' : 'border-gray-300'"
+                  :class="(hu || '').trim() && dupSet(d).has((hu || '').trim()) ? 'border-red-500 bg-red-50 dark:bg-red-900/30' : ((hu || '').trim() ? 'border-brandgreen-400 bg-brandgreen-50 dark:bg-gray-700' : 'border-gray-300')"
                 />
               </div>
             </div>
