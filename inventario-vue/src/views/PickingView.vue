@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, nextTick } from 'vue';
-import { QrCodeIcon, PaperAirplaneIcon, CheckCircleIcon, NoSymbolIcon, CameraIcon } from '@heroicons/vue/24/outline';
+import { QrCodeIcon, PaperAirplaneIcon, CheckCircleIcon, NoSymbolIcon, CameraIcon, TrashIcon } from '@heroicons/vue/24/outline';
 import { user } from '../authState';
 import { useInventory } from '../composables/useInventory';
 import { usePicking } from '../composables/usePicking';
@@ -123,6 +123,11 @@ const duplicados = computed(() => {
   return new Set(Object.keys(cont).filter(k => cont[k] > 1));
 });
 const hayDuplicados = computed(() => duplicados.value.size > 0);
+
+function borrarHU(r, i) {
+  estado.value[r.sku].hus[i] = '';
+  foco(r.sku, i);
+}
 
 function siguiente(r) {
   const e = estado.value[r.sku];
@@ -308,6 +313,9 @@ async function enviar() {
               class="flex-1 p-2 border rounded-lg font-mono text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               :class="(hu || '').trim() && duplicados.has((hu || '').trim()) ? 'border-red-500 bg-red-50 dark:bg-red-900/30' : ((hu || '').trim() ? 'border-brandgreen-400 bg-brandgreen-50 dark:bg-gray-700' : 'border-gray-300')"
             />
+            <button v-if="(hu || '').trim()" @click="borrarHU(r, i)" class="shrink-0 text-gray-400 hover:text-brand-600 p-1" title="Borrar HU">
+              <TrashIcon class="w-4 h-4" />
+            </button>
           </div>
         </div>
         <p v-else class="text-sm text-gray-400 italic">Marcada como "sin HU".</p>

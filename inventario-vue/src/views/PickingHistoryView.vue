@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { ClipboardDocumentListIcon, ChevronDownIcon, ChevronUpIcon, CheckCircleIcon, PaperAirplaneIcon, CameraIcon } from '@heroicons/vue/24/outline';
+import { ClipboardDocumentListIcon, ChevronDownIcon, ChevronUpIcon, CheckCircleIcon, PaperAirplaneIcon, CameraIcon, TrashIcon } from '@heroicons/vue/24/outline';
 import { usePicking } from '../composables/usePicking';
 import { useToasts } from '../composables/useToasts';
 import { user } from '../authState';
@@ -40,6 +40,7 @@ function huExisteEnDia(fecha, code) {
   const d = dias.value.find(x => x.fecha === fecha);
   return !!d && d.refs.some(r => (r.hus || []).some(h => (h || '').trim() === code));
 }
+function borrarHU(r, i) { r.hus[i] = ''; }
 function dupSet(d) {
   const cont = {};
   for (const r of d.refs) {
@@ -193,6 +194,9 @@ async function reenviar(d) {
                   class="flex-1 p-2 border rounded-lg font-mono text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                   :class="(hu || '').trim() && dupSet(d).has((hu || '').trim()) ? 'border-red-500 bg-red-50 dark:bg-red-900/30' : ((hu || '').trim() ? 'border-brandgreen-400 bg-brandgreen-50 dark:bg-gray-700' : 'border-gray-300')"
                 />
+                <button v-if="(hu || '').trim()" @click="borrarHU(r, i)" class="shrink-0 text-gray-400 hover:text-brand-600 p-1" title="Borrar HU">
+                  <TrashIcon class="w-4 h-4" />
+                </button>
               </div>
             </div>
             <p v-else class="text-sm text-gray-400 italic">Sin HU.</p>
