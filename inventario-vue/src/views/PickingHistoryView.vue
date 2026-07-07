@@ -1,16 +1,39 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { ClipboardDocumentListIcon, ChevronDownIcon, ChevronUpIcon, CheckCircleIcon, PaperAirplaneIcon } from '@heroicons/vue/24/outline';
+import { ClipboardDocumentListIcon, ChevronDownIcon, ChevronUpIcon, CheckCircleIcon, PaperAirplaneIcon, CameraIcon } from '@heroicons/vue/24/outline';
 import { usePicking } from '../composables/usePicking';
 import { useToasts } from '../composables/useToasts';
 import { user } from '../authState';
+import BarcodeScanner from '../components/BarcodeScanner.vue';
 
 const PICKING_WEBHOOK_URL = 'https://surexportlevante.app.n8n.cloud/webhook/picking-email';
 // EN PRUEBAS: se envía solo a Vicente. Volver a operaciones+logística al terminar.
 const DESTINATARIO = 'vicentemarco@surexport.es';
 
 const { fetchHistorial, savePicking } = usePicking();
-const { showSuccess, showError } = useToasts();
+const { showSuccess, showError, showInfo } = useToasts();
+
+// --- Escaneo con cámara ---
+const scanOpen = ref(false);
+const scanTarget = ref(null);
+const pingOk = ref(0);
+const ultimoHU = ref('');
+const llenas = (r) => (r?.hus || []).filter(h => (h || '').trim()).length;
+function abrirScanner(r) { scanTarget.value = r; ultimoHU.value = ''; scanOpen.value = true; }
+function cerrarScanner() { scanOpen.value = false; scanTarget.value = null; }
+function onEscaneo(code) {
+  const r = scanTarget.value;
+  if (!r || r.sin_hu) return;
+  const c = (code || '').trim();
+  if (!c) return;
+  if (r.hus.some(h => (h || '').trim() === c)) { showInfo('Ese HU ya estaba escaneado.'); return; }
+  const idx = r.hus.findIndex(h => !(h || '').trim());
+  if (idx === -1) return;
+  r.hus[idx] = c;
+  ultimoHU.value = c;
+  pingOk.value++;
+  if (llenas(r) === r.pallets) { setTimeout(cerrarScanner, 700); showSuccess(`${r.referencia}: completa.`); }
+}
 
 const filas = ref([]);
 const cargando = ref(true);
@@ -133,9 +156,15 @@ async function reenviar(d) {
           <div v-for="r in d.refs" :key="r.sku">
             <div class="flex items-center justify-between gap-2 mb-2">
               <p class="font-semibold text-gray-700 dark:text-gray-200 truncate">{{ r.referencia }} <span class="text-xs text-gray-400">({{ r.pallets }} pallets)</span></p>
-              <label class="text-xs text-gray-500 flex items-center gap-1 shrink-0">
-                <input type="checkbox" v-model="r.sin_hu" /> Sin HU
-              </label>
+              <div class="flex items-center gap-3 shrink-0">
+                <button v-if="!r.sin_hu" @click="abrirScanner(r)"
+                  class="text-xs font-semibold px-2 py-1 rounded border border-brand-300 text-brand-600 hover:bg-brand-50 dark:hover:bg-gray-700 flex items-center gap-1">
+                  <CameraIcon class="w-4 h-4" /> Escanear
+                </button>
+                <label class="text-xs text-gray-500 flex items-center gap-1">
+                  <input type="checkbox" v-model="r.sin_hu" /> Sin HU
+                </label>
+              </div>
             </div>
             <div v-if="!r.sin_hu" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div v-for="(hu, i) in r.hus" :key="i" class="flex items-center gap-2">
@@ -164,5 +193,17 @@ async function reenviar(d) {
         </div>
       </div>
     </div>
+
+    <!-- Escáner de cámara -->
+    <BarcodeScanner
+      :open="scanOpen"
+      :titulo="scanTarget ? scanTarget.referencia : 'Escanear'"
+      :hechas="scanTarget ? llenas(scanTarget) : 0"
+      :total="scanTarget ? scanTarget.pallets : 0"
+      :ultimo="ultimoHU"
+      :ok-signal="pingOk"
+      @detected="onEscaneo"
+      @close="cerrarScanner"
+    />
   </div>
 </template>
