@@ -33,14 +33,18 @@ const salidasHoy = computed(() => {
   return Object.values(acc).filter(r => r.pallets > 0).sort((a, b) => a.desc.localeCompare(b.desc));
 });
 
-const totalPallets = computed(() => salidasHoy.value.reduce((s, r) => s + r.pallets, 0));
-
 // --- Estado de HU por referencia (fuente de verdad: BD) ---
 const estado = ref({});          // sku -> { hus: string[], noHU: boolean }
-const enviadoHoy = ref(false);
+const enviadoPorSku = ref({});   // sku -> true si esa referencia ya se envió
 const dbHoy = ref({});           // sku -> fila de BD
 const aplicados = new Set();     // skus cuyo dato de BD ya se volcó al estado
 let listo = false;               // no autoguardar hasta cargar la BD
+
+// En Picking solo se ven las salidas del día que AÚN no se han enviado.
+// Un pedido nuevo aparece aquí hasta que se envía; los enviados van al historial.
+const pendientes = computed(() => salidasHoy.value.filter(r => !enviadoPorSku.value[r.sku]));
+const todoEnviado = computed(() => salidasHoy.value.length > 0 && pendientes.value.length === 0);
+const totalPallets = computed(() => pendientes.value.reduce((s, r) => s + r.pallets, 0));
 
 const fit = (arr, n) => Array.from({ length: n }, (_, i) => (arr && arr[i]) || '');
 
@@ -63,20 +67,20 @@ onMounted(async () => {
   try {
     const filas = await fetchByFecha(hoy);
     dbHoy.value = Object.fromEntries(filas.map(f => [f.sku, f]));
-    enviadoHoy.value = filas.some(f => f.enviado);
+    enviadoPorSku.value = Object.fromEntries(filas.filter(f => f.enviado).map(f => [f.sku, true]));
     reconciliar();
   } catch (e) {
     showError('No se pudo cargar el picking guardado: ' + e.message);
   } finally {
     listo = true;
-    const primera = salidasHoy.value.find(r => !completa(r));
+    const primera = pendientes.value.find(r => !completa(r));
     if (primera && !estado.value[primera.sku].noHU) foco(primera.sku, 0);
   }
 });
 
 // --- Autoguardado en BD (según se escanea) ---
-function filasParaGuardar(extra = {}) {
-  return salidasHoy.value.map(r => ({
+function filasParaGuardar(refs, extra = {}) {
+  return refs.map(r => ({
     fecha: hoy,
     sku: r.sku,
     referencia: r.desc,
@@ -91,7 +95,7 @@ watch(estado, () => {
   if (!listo || hayDuplicados.value) return; // no guardar si hay HU repetidos
   clearTimeout(tGuardado);
   tGuardado = setTimeout(() => {
-    savePicking(filasParaGuardar()).catch(e => console.warn('Autoguardado picking:', e.message));
+    savePicking(filasParaGuardar(pendientes.value)).catch(e => console.warn('Autoguardado picking:', e.message));
   }, 800);
 }, { deep: true });
 
@@ -105,8 +109,8 @@ const completa = (r) => {
   const e = estado.value[r.sku];
   return !!e && (e.noHU || llenas(r) === r.pallets);
 };
-const numListas = computed(() => salidasHoy.value.filter(completa).length);
-const todoCompleto = computed(() => salidasHoy.value.length > 0 && numListas.value === salidasHoy.value.length);
+const numListas = computed(() => pendientes.value.filter(completa).length);
+const todoCompleto = computed(() => pendientes.value.length > 0 && numListas.value === pendientes.value.length);
 
 // Un HU no puede repetirse en NINGUNA referencia del día
 function huExiste(code) {
@@ -133,7 +137,7 @@ function siguiente(r) {
   const e = estado.value[r.sku];
   const vacia = e.hus.findIndex(h => !(h || '').trim());
   if (vacia !== -1) return foco(r.sku, vacia);
-  const sig = salidasHoy.value.find(x => !completa(x));
+  const sig = pendientes.value.find(x => !completa(x));
   if (sig && !estado.value[sig.sku].noHU) {
     const j = estado.value[sig.sku].hus.findIndex(h => !(h || '').trim());
     foco(sig.sku, j === -1 ? 0 : j);
@@ -144,7 +148,7 @@ function toggleNoHU(r) {
   const e = estado.value[r.sku];
   e.noHU = !e.noHU;
   if (e.noHU) {
-    const sig = salidasHoy.value.find(x => !completa(x));
+    const sig = pendientes.value.find(x => !completa(x));
     if (sig && !estado.value[sig.sku].noHU) foco(sig.sku, 0);
   } else {
     foco(r.sku, 0);
@@ -181,15 +185,16 @@ async function enviar() {
   if (!todoCompleto.value) { showError('Faltan referencias por completar.'); return; }
   enviando.value = true;
   try {
+    const pend = pendientes.value;
     // 1) Guardar los HU (por si el correo falla, el registro queda)
-    await savePicking(filasParaGuardar());
+    await savePicking(filasParaGuardar(pend));
     // 2) Enviar el correo
     const payload = {
       fecha: hoyTxt,
       usuario: user.value?.email || 'desconocido',
       destinatario: DESTINATARIO,
       total_pallets: totalPallets.value,
-      referencias: salidasHoy.value.map(r => ({
+      referencias: pend.map(r => ({
         referencia: r.desc,
         sku: r.sku,
         pallets: r.pallets,
@@ -200,9 +205,9 @@ async function enviar() {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error('Respuesta ' + res.status);
-    // 3) Marcar como enviado en BD (se conservan los HU, queda editable)
-    await savePicking(filasParaGuardar({ enviado: true, enviado_at: new Date().toISOString() }));
-    enviadoHoy.value = true;
+    // 3) Marcar como enviadas en BD y ocultarlas del Picking (van al historial)
+    await savePicking(filasParaGuardar(pend, { enviado: true, enviado_at: new Date().toISOString() }));
+    for (const r of pend) enviadoPorSku.value[r.sku] = true;
     showSuccess('Formulario de picking enviado.');
   } catch (e) {
     showError('No se pudo enviar el formulario: ' + e.message);
@@ -227,8 +232,8 @@ async function enviar() {
       Hoy todavía no hay salidas registradas.
     </div>
 
-    <!-- Ya enviado: el formulario desaparece hasta el picking del día siguiente -->
-    <div v-else-if="enviadoHoy" class="bg-white dark:bg-gray-800 p-10 rounded-lg border border-gray-200 dark:border-gray-700 text-center">
+    <!-- Todo enviado: el formulario desaparece hasta que entre un pedido nuevo -->
+    <div v-else-if="todoEnviado" class="bg-white dark:bg-gray-800 p-10 rounded-lg border border-gray-200 dark:border-gray-700 text-center">
       <CheckCircleIcon class="w-12 h-12 text-brandgreen-500 mx-auto mb-3" />
       <p class="text-lg font-bold text-gray-800 dark:text-white mb-1">El picking de hoy ya se ha enviado</p>
       <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
@@ -249,12 +254,12 @@ async function enviar() {
       </div>
       <div>
         <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Referencias</p>
-        <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ salidasHoy.length }}</p>
+        <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ pendientes.length }}</p>
       </div>
       <div>
         <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Listas</p>
         <p class="text-2xl font-bold" :class="todoCompleto ? 'text-brandgreen-600' : 'text-brand-600'">
-          {{ numListas }} / {{ salidasHoy.length }}
+          {{ numListas }} / {{ pendientes.length }}
         </p>
       </div>
     </div>
@@ -262,7 +267,7 @@ async function enviar() {
     <!-- Referencias -->
     <div class="space-y-4 mb-6">
       <div
-        v-for="r in salidasHoy"
+        v-for="r in pendientes"
         :key="r.sku"
         class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border-l-4 border border-gray-200 dark:border-gray-700 p-4"
         :class="completa(r) ? 'border-l-brandgreen-500' : 'border-l-brand-500'"
@@ -335,7 +340,7 @@ async function enviar() {
       class="w-full flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-lg text-lg transition-colors"
     >
       <PaperAirplaneIcon class="w-6 h-6" />
-      {{ enviando ? 'Enviando…' : (hayDuplicados ? 'HU repetido' : (todoCompleto ? 'Enviar formulario' : `Faltan ${salidasHoy.length - numListas} referencias`)) }}
+      {{ enviando ? 'Enviando…' : (hayDuplicados ? 'HU repetido' : (todoCompleto ? 'Enviar formulario' : `Faltan ${pendientes.length - numListas} referencias`)) }}
     </button>
     </template>
 
