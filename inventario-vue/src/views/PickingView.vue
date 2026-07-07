@@ -1,10 +1,11 @@
 <script setup>
 import { ref, computed, watch, onMounted, nextTick } from 'vue';
-import { QrCodeIcon, PaperAirplaneIcon, CheckCircleIcon, NoSymbolIcon } from '@heroicons/vue/24/outline';
+import { QrCodeIcon, PaperAirplaneIcon, CheckCircleIcon, NoSymbolIcon, CameraIcon } from '@heroicons/vue/24/outline';
 import { user } from '../authState';
 import { useInventory } from '../composables/useInventory';
 import { usePicking } from '../composables/usePicking';
 import { useToasts } from '../composables/useToasts';
+import BarcodeScanner from '../components/BarcodeScanner.vue';
 
 const { movements } = useInventory();
 const { fetchByFecha, savePicking } = usePicking();
@@ -129,6 +130,26 @@ function toggleNoHU(r) {
   }
 }
 
+// --- Escaneo con cámara del móvil ---
+const scanOpen = ref(false);
+const scanSku = ref(null);
+const scanRef = computed(() => salidasHoy.value.find(r => r.sku === scanSku.value) || null);
+function abrirScanner(r) { scanSku.value = r.sku; scanOpen.value = true; }
+function cerrarScanner() { scanOpen.value = false; scanSku.value = null; }
+function onEscaneo(code) {
+  const r = scanRef.value;
+  if (!r) return;
+  const e = estado.value[r.sku];
+  if (e.noHU) return;
+  const c = (code || '').trim();
+  if (!c) return;
+  if (e.hus.some(h => (h || '').trim() === c)) { showInfo('Ese HU ya estaba escaneado.'); return; }
+  const idx = e.hus.findIndex(h => !(h || '').trim());
+  if (idx === -1) return; // ya está llena
+  e.hus[idx] = c;
+  if (completa(r)) { cerrarScanner(); showSuccess(`${r.desc}: completa.`); }
+}
+
 const enviando = ref(false);
 async function enviar() {
   if (!todoCompleto.value) { showError('Faltan referencias por completar.'); return; }
@@ -235,6 +256,13 @@ async function enviar() {
               {{ llenas(r) }} / {{ r.pallets }} HU
             </span>
             <button
+              v-if="!estado[r.sku]?.noHU && !completa(r)"
+              @click="abrirScanner(r)"
+              class="text-xs font-semibold px-2 py-1 rounded border border-brand-300 text-brand-600 hover:bg-brand-50 dark:hover:bg-gray-700 flex items-center gap-1"
+            >
+              <CameraIcon class="w-4 h-4" /> Escanear
+            </button>
+            <button
               @click="toggleNoHU(r)"
               class="text-xs font-semibold px-2 py-1 rounded border flex items-center gap-1 transition-colors"
               :class="estado[r.sku]?.noHU
@@ -275,5 +303,14 @@ async function enviar() {
       {{ enviando ? 'Enviando…' : (todoCompleto ? 'Enviar formulario' : `Faltan ${salidasHoy.length - numListas} referencias`) }}
     </button>
     </template>
+
+    <!-- Escáner de cámara -->
+    <BarcodeScanner
+      :open="scanOpen"
+      :titulo="scanRef ? scanRef.desc : 'Escanear'"
+      :info="scanRef ? `HU ${llenas(scanRef) + 1} de ${scanRef.pallets}` : ''"
+      @detected="onEscaneo"
+      @close="cerrarScanner"
+    />
   </div>
 </template>
