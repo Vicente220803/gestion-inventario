@@ -1,7 +1,17 @@
 <script setup>
 import { ref, watch, nextTick, onBeforeUnmount } from 'vue';
 import { BrowserMultiFormatReader } from '@zxing/browser';
+import { DecodeHintType, BarcodeFormat } from '@zxing/library';
 import { XMarkIcon } from '@heroicons/vue/24/outline';
+
+// Formatos habituales de HU/etiquetas + insistir en la lectura (1D cuesta más)
+const hints = new Map();
+hints.set(DecodeHintType.TRY_HARDER, true);
+hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+  BarcodeFormat.CODE_128, BarcodeFormat.CODE_39, BarcodeFormat.ITF,
+  BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A,
+  BarcodeFormat.QR_CODE, BarcodeFormat.DATA_MATRIX,
+]);
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -21,9 +31,9 @@ async function start() {
   error.value = '';
   await nextTick();
   try {
-    reader = new BrowserMultiFormatReader();
+    reader = new BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 120 });
     controls = await reader.decodeFromConstraints(
-      { video: { facingMode: { ideal: 'environment' } } },
+      { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
       videoEl.value,
       (result) => {
         if (!result) return;
