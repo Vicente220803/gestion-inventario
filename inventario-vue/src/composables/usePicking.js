@@ -22,6 +22,16 @@ export function usePicking() {
     if (error) throw error;
   }
 
+  // Filas desde una fecha (YYYY-MM-DD) en adelante (para las pendientes de varios días)
+  async function fetchDesde(fecha) {
+    const { data, error } = await supabase
+      .from('picking_salidas')
+      .select('*')
+      .gte('fecha', fecha);
+    if (error) throw error;
+    return data || [];
+  }
+
   // Todo el historial (más reciente primero)
   async function fetchHistorial() {
     const { data, error } = await supabase
@@ -32,5 +42,5 @@ export function usePicking() {
     return data || [];
   }
 
-  return { fetchByFecha, savePicking, fetchHistorial };
+  return { fetchByFecha, fetchDesde, savePicking, fetchHistorial };
 }

@@ -7,8 +7,7 @@ import { user } from '../authState';
 import BarcodeScanner from '../components/BarcodeScanner.vue';
 
 const PICKING_WEBHOOK_URL = 'https://surexportlevante.app.n8n.cloud/webhook/picking-email';
-// EN PRUEBAS: se envía solo a Vicente. Volver a operaciones+logística al terminar.
-const DESTINATARIO = 'vicentemarco@surexport.es';
+const DESTINATARIO = 'operacioneslevante@surexport.es, logisticalevante@surexport.es';
 
 const { fetchHistorial, savePicking } = usePicking();
 const { showSuccess, showError, showInfo } = useToasts();
