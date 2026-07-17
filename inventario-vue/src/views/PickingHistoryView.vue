@@ -140,15 +140,15 @@ async function reenviar(d) {
 <template>
   <div class="max-w-3xl mx-auto">
     <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-1 flex items-center gap-2">
-      <ClipboardDocumentListIcon class="w-8 h-8 text-brand-600" /> Historial Picking
+      <ClipboardDocumentListIcon class="w-8 h-8 text-brand-600" /> Historial Escaneo
     </h1>
     <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
-      Pickings por día. Abre un día para ver y <strong>modificar los HU</strong> de cada referencia y, si hace falta, <strong>reenviar el correo</strong>.
+      Escaneos por día. Abre un día para ver y <strong>modificar los HU</strong> de cada referencia y, si hace falta, <strong>reenviar el correo</strong>.
     </p>
 
     <div v-if="cargando" class="text-center text-gray-400 py-10">Cargando…</div>
     <div v-else-if="dias.length === 0" class="bg-white dark:bg-gray-800 p-10 rounded-lg border border-gray-200 dark:border-gray-700 text-center text-gray-400">
-      Todavía no hay pickings guardados.
+      Todavía no hay escaneos guardados.
     </div>
 
     <div v-else class="space-y-3">

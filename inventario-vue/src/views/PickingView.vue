@@ -79,7 +79,7 @@ onMounted(async () => {
     enviadoPorKey.value = Object.fromEntries(filas.filter(f => f.enviado).map(f => [keyOf(f.fecha, f.sku), true]));
     reconciliar();
   } catch (e) {
-    showError('No se pudo cargar el picking guardado: ' + e.message);
+    showError('No se pudo cargar el escaneo guardado: ' + e.message);
   } finally {
     listo = true;
     const primera = pendientes.value.find(r => !completa(r));
@@ -219,7 +219,7 @@ async function enviarDia(fecha) {
     if (!res.ok) throw new Error('Respuesta ' + res.status);
     await savePicking(filasParaGuardar(pend, { enviado: true, enviado_at: new Date().toISOString() }));
     for (const r of pend) enviadoPorKey.value[r.key] = true;
-    showSuccess(`Picking del ${fmtDia(fecha)} enviado.`);
+    showSuccess(`Escaneo del ${fmtDia(fecha)} enviado.`);
   } catch (e) {
     showError('No se pudo enviar el formulario: ' + e.message);
   } finally {
@@ -231,7 +231,7 @@ async function enviarDia(fecha) {
 <template>
   <div class="max-w-3xl mx-auto">
     <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-1 flex items-center gap-2">
-      <QrCodeIcon class="w-8 h-8 text-brand-600" /> Picking
+      <QrCodeIcon class="w-8 h-8 text-brand-600" /> Escaneo
     </h1>
     <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
       Salidas <strong>pendientes de enviar</strong>, agrupadas por día. Escanea un HU en cada casilla (cámara o pistola).
@@ -240,18 +240,18 @@ async function enviarDia(fecha) {
 
     <!-- Sin salidas pendientes -->
     <div v-if="candidatas.length === 0" class="bg-white dark:bg-gray-800 p-10 rounded-lg border border-gray-200 dark:border-gray-700 text-center text-gray-400">
-      No hay salidas pendientes de picking.
+      No hay salidas pendientes de escaneo.
     </div>
 
     <!-- Todo enviado -->
     <div v-else-if="todoEnviado" class="bg-white dark:bg-gray-800 p-10 rounded-lg border border-gray-200 dark:border-gray-700 text-center">
       <CheckCircleIcon class="w-12 h-12 text-brandgreen-500 mx-auto mb-3" />
-      <p class="text-lg font-bold text-gray-800 dark:text-white mb-1">No queda picking pendiente</p>
+      <p class="text-lg font-bold text-gray-800 dark:text-white mb-1">No queda escaneo pendiente</p>
       <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
         Cuando entre un pedido nuevo aparecerá aquí. Para ver o modificar los HU, entra en el historial.
       </p>
       <router-link to="/picking-historial" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-semibold">
-        Ir a Historial Picking
+        Ir a Historial Escaneo
       </router-link>
     </div>
 

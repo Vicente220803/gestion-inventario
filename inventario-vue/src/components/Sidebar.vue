@@ -50,8 +50,8 @@ const allNavigation = [
   { name: 'Historial', path: '/historial', icon: ClockIcon, roles: ['admin', 'operario'] },
   { name: 'Entradas', path: '/incomings', icon: PlusIcon, roles: ['admin'] }, // <-- Mejora: Añadimos roles aquí
   { name: 'Nuevo Pedido', path: '/new-order', icon: PlusIcon, roles: ['admin', 'operario'] },
-  { name: 'Picking', path: '/picking', icon: QrCodeIcon, roles: ['admin', 'operario', 'gescotrans'] },
-  { name: 'Historial Picking', path: '/picking-historial', icon: ClipboardDocumentListIcon, roles: ['admin', 'operario', 'gescotrans'] },
+  { name: 'Escaneo', path: '/picking', icon: QrCodeIcon, roles: ['admin', 'operario', 'gescotrans'] },
+  { name: 'Historial Escaneo', path: '/picking-historial', icon: ClipboardDocumentListIcon, roles: ['admin', 'operario', 'gescotrans'] },
   { name: 'Materiales', path: '/settings', icon: CogIcon, roles: ['admin'] },
 ];
 
