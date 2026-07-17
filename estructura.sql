@@ -229,6 +229,10 @@ $function$
 
 -- Ajuste de inventario atómico (recuento manual desde StockView):
 --   actualiza stock e inserta movimiento en una sola transacción.
+--   2026-07-17: además SINCRONIZA stock_lotes con la cantidad contada
+--   (sobran -> consume incompletos primero + FIFO; faltan -> añade lote
+--   estándar). Antes solo tocaba stock y los lotes quedaban desincronizados
+--   para siempre. Ver fix_ajuste_sincroniza_lotes.sql
 CREATE OR REPLACE FUNCTION public.registrar_ajuste_inventario(
   ajustes jsonb,    -- [{sku, desc, oldQuantity, newQuantity}, ...]
   motivo text
